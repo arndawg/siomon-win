@@ -113,17 +113,41 @@ impl Spd5118Source {
 }
 
 /// Attempt to open the device and verify it is an SPD5118 by reading MR0.
+///
+/// Note: On AMD platforms (piix4_smbus), the FCH's SPD controller may
+/// intercept reads at 0x50-0x57 and return EEPROM data instead of
+/// management registers. In that case, MR0 will not read 0x51 and
+/// the probe will correctly reject the device.
 fn probe_spd5118(bus: u32, addr: u16, dimm_index: u32) -> Option<DimmSensor> {
     let dev = SmbusDevice::open(bus, addr).ok()?;
 
-    // Read device type register — must be 0x51 for SPD5118
+    // Read device type register — must be 0x51 for SPD5118.
+    // On AMD FCH platforms, this may return EEPROM data instead of MR0.
     let device_type = dev.read_byte_data(SPD5118_MR_DEVICE_TYPE).ok()?;
     if device_type != SPD5118_DEVICE_TYPE_ID {
+        log::debug!(
+            "SPD5118 probe: bus {} addr {:#04x} MR0={:#04x} (expected {:#04x})",
+            bus,
+            addr,
+            device_type,
+            SPD5118_DEVICE_TYPE_ID
+        );
         return None;
     }
 
-    // Also verify the temperature register is readable
-    dev.read_word_data(SPD5118_MR_TEMPERATURE).ok()?;
+    // Verify the temperature register returns a plausible value
+    let temp_raw = dev.read_word_data(SPD5118_MR_TEMPERATURE).ok()?;
+    let masked = temp_raw & 0x1FFF;
+    let temp_c = masked as f64 * TEMP_LSB_RESOLUTION;
+    if temp_c > 150.0 || temp_c < -40.0 {
+        log::debug!(
+            "SPD5118 probe: bus {} addr {:#04x} temp {:.1}C out of range",
+            bus,
+            addr,
+            temp_c
+        );
+        return None;
+    }
 
     let slot = addr - SPD_ADDR_FIRST;
     let label = format!("DIMM {} (bus {} slot {})", dimm_index, bus, slot);

@@ -65,17 +65,24 @@ impl Poller {
         let mut net_src = network_stats::NetworkStatsSource::discover();
 
         // Direct I/O sources (Super I/O, I2C) — only when --direct-io is set
-        let superio_src = if self.direct_io {
+        let (nct_src, ite_src) = if self.direct_io {
             let chips = superio::chip_detect::detect_all();
-            chips
-                .into_iter()
-                .filter_map(|chip| {
-                    let src = superio::nct67xx::Nct67xxSource::new(chip);
-                    if src.is_supported() { Some(src) } else { None }
-                })
-                .collect::<Vec<_>>()
+            let mut nct = Vec::new();
+            let mut ite = Vec::new();
+            for chip in chips {
+                let nct_s = superio::nct67xx::Nct67xxSource::new(chip.clone());
+                if nct_s.is_supported() {
+                    nct.push(nct_s);
+                    continue;
+                }
+                let ite_s = superio::ite87xx::Ite87xxSource::new(chip);
+                if ite_s.is_supported() {
+                    ite.push(ite_s);
+                }
+            }
+            (nct, ite)
         } else {
-            Vec::new()
+            (Vec::new(), Vec::new())
         };
 
         let i2c_src = if self.direct_io {
@@ -88,10 +95,11 @@ impl Poller {
         };
 
         log::info!(
-            "Sensor poller started: {} hwmon chips, {} hwmon sensors, {} superio chips, i2c: {}",
+            "Sensor poller started: {} hwmon chips, {} hwmon sensors, {} nct chips, {} ite chips, i2c: {}",
             hwmon_src.chip_count(),
             hwmon_src.sensor_count(),
-            superio_src.len(),
+            nct_src.len(),
+            ite_src.len(),
             if i2c_src.is_some() { "yes" } else { "no" },
         );
 
@@ -108,7 +116,10 @@ impl Poller {
             new_readings.extend(net_src.poll());
 
             // Direct I/O sources
-            for sio in &superio_src {
+            for sio in &nct_src {
+                new_readings.extend(sio.poll());
+            }
+            for sio in &ite_src {
                 new_readings.extend(sio.poll());
             }
             if let Some(ref i2c) = i2c_src {
@@ -191,9 +202,16 @@ pub fn snapshot(
     // Direct I/O sources
     if direct_io {
         for chip in superio::chip_detect::detect_all() {
-            let src = superio::nct67xx::Nct67xxSource::new(chip);
-            if src.is_supported() {
-                for (id, reading) in src.poll() {
+            let nct = superio::nct67xx::Nct67xxSource::new(chip.clone());
+            if nct.is_supported() {
+                for (id, reading) in nct.poll() {
+                    map.insert(id, reading);
+                }
+                continue;
+            }
+            let ite = superio::ite87xx::Ite87xxSource::new(chip);
+            if ite.is_supported() {
+                for (id, reading) in ite.poll() {
                     map.insert(id, reading);
                 }
             }

@@ -2,14 +2,30 @@ use crate::model::cpu::CpuVendor;
 
 /// Look up a CPU microarchitecture codename based on vendor, display family, and display model.
 pub fn lookup(vendor: &CpuVendor, family: u32, model: u32) -> Option<String> {
+    lookup_with_brand(vendor, family, model, "")
+}
+
+/// Look up codename with a brand string hint for disambiguation.
+///
+/// Some CPUID family/model values are shared between mobile and workstation
+/// SKUs (e.g., AMD family 0x1A model 0x08 is both Strix Point and Turin).
+/// The brand string helps disambiguate.
+pub fn lookup_with_brand(
+    vendor: &CpuVendor,
+    family: u32,
+    model: u32,
+    brand: &str,
+) -> Option<String> {
     match vendor {
-        CpuVendor::Amd => lookup_amd(family, model),
+        CpuVendor::Amd => lookup_amd(family, model, brand),
         CpuVendor::Intel => lookup_intel(family, model),
         _ => None,
     }
 }
 
-fn lookup_amd(family: u32, model: u32) -> Option<String> {
+fn lookup_amd(family: u32, model: u32, brand: &str) -> Option<String> {
+    let lower_brand = brand.to_lowercase();
+
     let name = match (family, model) {
         // Zen — Summit Ridge / Naples
         (0x17, 0x01) => "Zen (Summit Ridge)",
@@ -42,7 +58,16 @@ fn lookup_amd(family: u32, model: u32) -> Option<String> {
 
         // Zen 5
         (0x1A, 0x02) => "Zen 5 (Strix Halo)",
-        (0x1A, 0x08) => "Zen 5 (Strix Point)",
+        (0x1A, 0x08) => {
+            // Family 0x1A model 0x08 is shared: Strix Point (mobile) and
+            // Turin (Threadripper PRO / EPYC workstation). Disambiguate
+            // using the brand string.
+            if lower_brand.contains("threadripper") || lower_brand.contains("epyc") {
+                "Zen 5 (Turin)"
+            } else {
+                "Zen 5 (Strix Point)"
+            }
+        }
         (0x1A, 0x10) => "Zen 5 (Turin)",
         (0x1A, 0x11) => "Zen 5c (Turin Dense)",
         (0x1A, 0x20) => "Zen 5 (Granite Ridge)",
@@ -205,6 +230,23 @@ mod tests {
     fn test_amd_zen5_granite_ridge() {
         let result = lookup(&CpuVendor::Amd, 0x1A, 0x20);
         assert_eq!(result, Some("Zen 5 (Granite Ridge)".to_string()));
+    }
+
+    #[test]
+    fn test_amd_zen5_strix_point_mobile() {
+        let result = lookup_with_brand(&CpuVendor::Amd, 0x1A, 0x08, "AMD Ryzen AI 9 HX 370");
+        assert_eq!(result, Some("Zen 5 (Strix Point)".to_string()));
+    }
+
+    #[test]
+    fn test_amd_zen5_turin_threadripper() {
+        let result = lookup_with_brand(
+            &CpuVendor::Amd,
+            0x1A,
+            0x08,
+            "AMD Ryzen Threadripper PRO 9995WX 96-Cores",
+        );
+        assert_eq!(result, Some("Zen 5 (Turin)".to_string()));
     }
 
     #[test]

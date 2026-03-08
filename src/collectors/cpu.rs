@@ -41,7 +41,7 @@ pub fn collect() -> Result<Vec<CpuInfo>> {
         .or_else(|| first_proc.and_then(|p| p.get("model name").cloned()))
         .unwrap_or_else(|| "Unknown CPU".to_string());
 
-    let codename = cpu_codenames::lookup(&vendor, family, model)
+    let codename = cpu_codenames::lookup_with_brand(&vendor, family, model, &brand)
         .or_else(|| arm_info.as_ref().and_then(|a| a.codename.clone()));
 
     let features = cpuid_data
