@@ -26,6 +26,18 @@ pub fn collect() -> Vec<BatteryInfo> {
     batteries
 }
 
+pub struct BatteryCollector;
+
+impl crate::collectors::Collector for BatteryCollector {
+    fn name(&self) -> &str {
+        "battery"
+    }
+
+    fn collect_into(&self, info: &mut crate::model::system::SystemInfo) {
+        info.batteries = collect();
+    }
+}
+
 fn collect_battery(name: &str, path: &Path) -> Option<BatteryInfo> {
     let manufacturer = sysfs::read_string_optional(&path.join("manufacturer"));
     let model_name = sysfs::read_string_optional(&path.join("model_name"));

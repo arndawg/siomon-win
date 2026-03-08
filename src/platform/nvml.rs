@@ -5,7 +5,7 @@
 
 #![cfg(feature = "nvidia")]
 
-use std::ffi::{CStr, c_char, c_uint};
+use std::ffi::{c_char, c_uint, CStr};
 use std::sync::Arc;
 
 use crate::error::NvmlError;
@@ -18,9 +18,7 @@ const NVML_SUCCESS: c_uint = 0;
 
 /// Clock type constants for `nvmlDeviceGetClockInfo` / `nvmlDeviceGetMaxClockInfo`.
 pub const NVML_CLOCK_GRAPHICS: c_uint = 0;
-pub const NVML_CLOCK_SM: c_uint = 1;
 pub const NVML_CLOCK_MEM: c_uint = 2;
-pub const NVML_CLOCK_VIDEO: c_uint = 3;
 
 /// Temperature sensor constants.
 const NVML_TEMPERATURE_GPU: c_uint = 0;

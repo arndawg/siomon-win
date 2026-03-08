@@ -8,7 +8,6 @@ pub struct HwmonSource {
 }
 
 struct ChipSensors {
-    chip_name: String,
     entries: Vec<SensorEntry>,
 }
 
@@ -83,7 +82,7 @@ impl HwmonSource {
             );
 
             if !entries.is_empty() {
-                chips.push(ChipSensors { chip_name, entries });
+                chips.push(ChipSensors { entries });
             }
         }
 
@@ -165,6 +164,16 @@ fn discover_type(
             unit,
             divisor,
         });
+    }
+}
+
+impl crate::sensors::SensorSource for HwmonSource {
+    fn name(&self) -> &str {
+        "hwmon"
+    }
+
+    fn poll(&mut self) -> Vec<(SensorId, SensorReading)> {
+        HwmonSource::poll(self)
     }
 }
 

@@ -1,10 +1,5 @@
 use crate::model::cpu::CpuVendor;
 
-/// Look up a CPU microarchitecture codename based on vendor, display family, and display model.
-pub fn lookup(vendor: &CpuVendor, family: u32, model: u32) -> Option<String> {
-    lookup_with_brand(vendor, family, model, "")
-}
-
 /// Look up codename with a brand string hint for disambiguation.
 ///
 /// Some CPUID family/model values are shared between mobile and workstation
@@ -228,7 +223,7 @@ mod tests {
 
     #[test]
     fn test_amd_zen5_granite_ridge() {
-        let result = lookup(&CpuVendor::Amd, 0x1A, 0x20);
+        let result = lookup_with_brand(&CpuVendor::Amd, 0x1A, 0x20, "");
         assert_eq!(result, Some("Zen 5 (Granite Ridge)".to_string()));
     }
 
@@ -251,25 +246,25 @@ mod tests {
 
     #[test]
     fn test_amd_zen2_matisse() {
-        let result = lookup(&CpuVendor::Amd, 0x17, 0x71);
+        let result = lookup_with_brand(&CpuVendor::Amd, 0x17, 0x71, "");
         assert_eq!(result, Some("Zen 2 (Matisse)".to_string()));
     }
 
     #[test]
     fn test_intel_raptor_lake() {
-        let result = lookup(&CpuVendor::Intel, 6, 0xB7);
+        let result = lookup_with_brand(&CpuVendor::Intel, 6, 0xB7, "");
         assert_eq!(result, Some("Raptor Lake".to_string()));
     }
 
     #[test]
     fn test_unknown_returns_none() {
-        let result = lookup(&CpuVendor::Intel, 99, 99);
+        let result = lookup_with_brand(&CpuVendor::Intel, 99, 99, "");
         assert!(result.is_none());
     }
 
     #[test]
     fn test_arm_returns_none() {
-        let result = lookup(&CpuVendor::Arm, 0, 0);
+        let result = lookup_with_brand(&CpuVendor::Arm, 0, 0, "");
         assert!(result.is_none());
     }
 

@@ -106,6 +106,16 @@ impl NetworkStatsSource {
     }
 }
 
+impl crate::sensors::SensorSource for NetworkStatsSource {
+    fn name(&self) -> &str {
+        "network"
+    }
+
+    fn poll(&mut self) -> Vec<(SensorId, SensorReading)> {
+        NetworkStatsSource::poll(self)
+    }
+}
+
 fn read_net_stat(iface: &str) -> Option<NetStat> {
     let base = Path::new("/sys/class/net").join(iface).join("statistics");
     let rx_bytes = sysfs::read_u64_optional(&base.join("rx_bytes"))?;

@@ -230,6 +230,18 @@ fn parse_memory_type(s: &str) -> MemoryType {
     }
 }
 
+pub struct MemoryCollector;
+
+impl crate::collectors::Collector for MemoryCollector {
+    fn name(&self) -> &str {
+        "memory"
+    }
+
+    fn collect_into(&self, info: &mut crate::model::system::SystemInfo) {
+        info.memory = collect();
+    }
+}
+
 #[derive(Default)]
 struct DimmBuilder {
     locator: Option<String>,

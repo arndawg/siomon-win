@@ -29,6 +29,18 @@ pub fn collect() -> Vec<UsbDevice> {
     devices
 }
 
+pub struct UsbCollector;
+
+impl crate::collectors::Collector for UsbCollector {
+    fn name(&self) -> &str {
+        "usb"
+    }
+
+    fn collect_into(&self, info: &mut crate::model::system::SystemInfo) {
+        info.usb_devices = collect();
+    }
+}
+
 fn collect_device(name: &str, path: &Path) -> Option<UsbDevice> {
     let vendor_id = read_hex_u16(path, "idVendor")?;
     let product_id = read_hex_u16(path, "idProduct")?;

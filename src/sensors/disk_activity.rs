@@ -87,6 +87,16 @@ impl DiskActivitySource {
     }
 }
 
+impl crate::sensors::SensorSource for DiskActivitySource {
+    fn name(&self) -> &str {
+        "disk"
+    }
+
+    fn poll(&mut self) -> Vec<(SensorId, SensorReading)> {
+        DiskActivitySource::poll(self)
+    }
+}
+
 fn parse_diskstats() -> HashMap<String, DiskStat> {
     let mut stats = HashMap::new();
     let Ok(content) = fs::read_to_string("/proc/diskstats") else {

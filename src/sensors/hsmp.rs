@@ -39,17 +39,13 @@ mod inner {
 
     pub struct HsmpSource {
         available: bool,
-        proto_ver: u32,
     }
 
     impl HsmpSource {
         pub fn discover() -> Self {
             if !std::path::Path::new("/dev/hsmp").exists() {
                 log::debug!("HSMP: /dev/hsmp not found");
-                return Self {
-                    available: false,
-                    proto_ver: 0,
-                };
+                return Self { available: false };
             }
 
             // Verify with HSMP_TEST
@@ -57,10 +53,7 @@ mod inner {
                 Ok(args) if args[0] == 43 => {}
                 _ => {
                     log::debug!("HSMP: test message failed");
-                    return Self {
-                        available: false,
-                        proto_ver: 0,
-                    };
+                    return Self { available: false };
                 }
             }
 
@@ -69,10 +62,7 @@ mod inner {
                 .unwrap_or(0);
 
             log::info!("HSMP sensor source available (proto v{})", proto_ver);
-            Self {
-                available: true,
-                proto_ver,
-            }
+            Self { available: true }
         }
 
         pub fn poll(&self) -> Vec<(SensorId, SensorReading)> {
@@ -217,6 +207,16 @@ mod inner {
         }
     }
 
+    impl crate::sensors::SensorSource for HsmpSource {
+        fn name(&self) -> &str {
+            "hsmp"
+        }
+
+        fn poll(&mut self) -> Vec<(SensorId, SensorReading)> {
+            HsmpSource::poll(self)
+        }
+    }
+
     fn sensor(
         name: &str,
         label: &str,
@@ -284,6 +284,16 @@ mod inner {
         }
         pub fn is_available(&self) -> bool {
             false
+        }
+    }
+
+    impl crate::sensors::SensorSource for HsmpSource {
+        fn name(&self) -> &str {
+            "hsmp"
+        }
+
+        fn poll(&mut self) -> Vec<(SensorId, SensorReading)> {
+            HsmpSource::poll(self)
         }
     }
 }

@@ -89,6 +89,16 @@ impl CpuUtilSource {
     }
 }
 
+impl crate::sensors::SensorSource for CpuUtilSource {
+    fn name(&self) -> &str {
+        "cpu_util"
+    }
+
+    fn poll(&mut self) -> Vec<(SensorId, SensorReading)> {
+        CpuUtilSource::poll(self)
+    }
+}
+
 fn parse_stat() -> Vec<CpuJiffies> {
     let Ok(content) = fs::read_to_string("/proc/stat") else {
         return Vec::new();

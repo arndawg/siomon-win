@@ -202,6 +202,7 @@ impl PmbusSource {
     }
 
     /// Number of discovered VRM devices.
+    #[allow(dead_code)] // Used in tests
     pub fn device_count(&self) -> usize {
         self.devices.len()
     }
@@ -375,56 +376,6 @@ fn probe_pmbus_with_pages(bus: u32, addr: u16, vrm_index: &mut u32) -> Vec<Pmbus
     results
 }
 
-/// Attempt to identify a PMBus device by reading VOUT_MODE (legacy single-page probe).
-fn probe_pmbus(bus: u32, addr: u16, vrm_index: u32) -> Option<PmbusDevice> {
-    let dev = SmbusDevice::open(bus, addr).ok()?;
-
-    // Read VOUT_MODE — a successful read with LINEAR mode (bits [7:5] = 000)
-    // is a strong indicator of a PMBus device.
-    let vout_mode = dev.read_byte_data(PMBUS_VOUT_MODE).ok()?;
-
-    // Bits [7:5] encode the mode: 000 = LINEAR, others = VID/DIRECT/MFR.
-    // We only support LINEAR mode.
-    let mode_bits = vout_mode >> 5;
-    if mode_bits != 0 {
-        log::debug!(
-            "PMBus probe: bus {} addr {:#04x} VOUT_MODE={:#04x} not LINEAR (mode={})",
-            bus,
-            addr,
-            vout_mode,
-            mode_bits
-        );
-        return None;
-    }
-
-    let vout_exponent = sign_extend_5bit(vout_mode & 0x1F);
-
-    // Sanity check: try reading VIN and verify it decodes to a plausible value.
-    let vin_raw = dev.read_word_data(PMBUS_READ_VIN).ok()?;
-    let vin = decode_linear11(vin_raw);
-    if !(0.0..=60.0).contains(&vin) {
-        log::debug!(
-            "PMBus probe: bus {} addr {:#04x} VIN={:.2}V out of range",
-            bus,
-            addr,
-            vin
-        );
-        return None;
-    }
-
-    let label_prefix = format!("VRM {} (bus {} addr {:#04x})", vrm_index, bus, addr);
-    let id_prefix = format!("vrm{vrm_index}");
-
-    Some(PmbusDevice {
-        bus,
-        addr,
-        page: None,
-        vout_exponent,
-        label_prefix,
-        id_prefix,
-    })
-}
-
 /// Decode a PMBus LINEAR11 value to a floating-point number.
 ///
 /// LINEAR11 format encodes a signed 5-bit exponent in bits [15:11]
@@ -462,6 +413,16 @@ fn sign_extend_5bit(val: u8) -> i8 {
         (val | 0xE0) as i8
     } else {
         val as i8
+    }
+}
+
+impl crate::sensors::SensorSource for PmbusSource {
+    fn name(&self) -> &str {
+        "pmbus"
+    }
+
+    fn poll(&mut self) -> Vec<(SensorId, SensorReading)> {
+        PmbusSource::poll(self)
     }
 }
 

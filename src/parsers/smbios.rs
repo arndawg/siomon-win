@@ -16,7 +16,6 @@ pub struct BiosEntry {
     pub vendor: Option<String>,
     pub version: Option<String>,
     pub release_date: Option<String>,
-    pub rom_size_bytes: Option<u64>,
     pub major_release: Option<u8>,
     pub minor_release: Option<u8>,
 }
@@ -26,8 +25,6 @@ pub struct BiosEntry {
 pub struct SystemEntry {
     pub manufacturer: Option<String>,
     pub product_name: Option<String>,
-    pub version: Option<String>,
-    pub serial_number: Option<String>,
     pub uuid: Option<String>,
     pub sku_number: Option<String>,
     pub family: Option<String>,
@@ -45,7 +42,6 @@ pub struct BaseboardEntry {
 /// Parsed Memory Device (SMBIOS Type 17).
 #[derive(Debug, Clone)]
 pub struct MemoryDeviceEntry {
-    pub physical_memory_array_handle: u16,
     pub total_width_bits: Option<u16>,
     pub data_width_bits: Option<u16>,
     pub size_bytes: u64,
@@ -57,13 +53,9 @@ pub struct MemoryDeviceEntry {
     pub speed_mts: Option<u32>,
     pub manufacturer: Option<String>,
     pub serial_number: Option<String>,
-    pub asset_tag: Option<String>,
     pub part_number: Option<String>,
     pub rank: Option<u8>,
-    pub extended_size_mb: Option<u32>,
     pub configured_speed_mts: Option<u32>,
-    pub min_voltage_mv: Option<u16>,
-    pub max_voltage_mv: Option<u16>,
     pub configured_voltage_mv: Option<u16>,
 }
 
@@ -318,17 +310,6 @@ fn parse_bios(data: &[u8], header_len: usize) -> BiosEntry {
     let version = get_string(data, hl, read_u8(data, 0x05).unwrap_or(0));
     let release_date = get_string(data, hl, read_u8(data, 0x08).unwrap_or(0));
 
-    // ROM size: byte at 0x09.  If value is not 0xFF, size = (n + 1) * 64 KiB.
-    let rom_size_bytes = read_u8(data, 0x09).and_then(|n| {
-        if n == 0xFF {
-            // Extended ROM size at offset 0x18 (SMBIOS 3.1+) is not always
-            // present; just return None.
-            None
-        } else {
-            Some((n as u64 + 1) * 64 * 1024)
-        }
-    });
-
     let major_release = if header_len > 0x12 {
         read_u8(data, 0x12)
     } else {
@@ -344,7 +325,6 @@ fn parse_bios(data: &[u8], header_len: usize) -> BiosEntry {
         vendor,
         version,
         release_date,
-        rom_size_bytes,
         major_release,
         minor_release,
     }
@@ -358,8 +338,6 @@ fn parse_system(data: &[u8], header_len: usize) -> SystemEntry {
     let hl = header_len as u8;
     let manufacturer = get_string(data, hl, read_u8(data, 0x04).unwrap_or(0));
     let product_name = get_string(data, hl, read_u8(data, 0x05).unwrap_or(0));
-    let version = get_string(data, hl, read_u8(data, 0x06).unwrap_or(0));
-    let serial_number = get_string(data, hl, read_u8(data, 0x07).unwrap_or(0));
 
     // UUID is 16 bytes starting at offset 0x08.
     let uuid = if header_len >= 0x18 {
@@ -382,8 +360,6 @@ fn parse_system(data: &[u8], header_len: usize) -> SystemEntry {
     SystemEntry {
         manufacturer,
         product_name,
-        version,
-        serial_number,
         uuid,
         sku_number,
         family,
@@ -450,7 +426,6 @@ fn parse_memory_device(data: &[u8], header_len: usize) -> Option<MemoryDeviceEnt
 
     let hl = header_len as u8;
 
-    let physical_memory_array_handle = read_u16_le(data, 0x04).unwrap_or(0);
     let total_width = read_u16_nonzero(data, 0x08);
     let data_width = read_u16_nonzero(data, 0x0A);
 
@@ -487,11 +462,6 @@ fn parse_memory_device(data: &[u8], header_len: usize) -> Option<MemoryDeviceEnt
     } else {
         None
     };
-    let asset_tag = if header_len > 0x19 {
-        get_string(data, hl, read_u8(data, 0x19).unwrap_or(0))
-    } else {
-        None
-    };
     let part_number = if header_len > 0x1A {
         get_string(data, hl, read_u8(data, 0x1A).unwrap_or(0))
     } else {
@@ -501,16 +471,11 @@ fn parse_memory_device(data: &[u8], header_len: usize) -> Option<MemoryDeviceEnt
     let rank = if header_len > 0x1B {
         read_u8(data, 0x1B).and_then(|v| {
             let r = v & 0x0F;
-            if r == 0 { None } else { Some(r) }
-        })
-    } else {
-        None
-    };
-
-    let extended_size_mb = if header_len > 0x1F {
-        read_u32_le(data, 0x1C).and_then(|v| {
-            let mb = v & 0x7FFF_FFFF;
-            if mb == 0 { None } else { Some(mb) }
+            if r == 0 {
+                None
+            } else {
+                Some(r)
+            }
         })
     } else {
         None
@@ -522,16 +487,6 @@ fn parse_memory_device(data: &[u8], header_len: usize) -> Option<MemoryDeviceEnt
         None
     };
 
-    let min_voltage_mv = if header_len > 0x23 {
-        read_u16_nonzero(data, 0x22)
-    } else {
-        None
-    };
-    let max_voltage_mv = if header_len > 0x25 {
-        read_u16_nonzero(data, 0x24)
-    } else {
-        None
-    };
     let configured_voltage_mv = if header_len > 0x27 {
         read_u16_nonzero(data, 0x26)
     } else {
@@ -539,7 +494,6 @@ fn parse_memory_device(data: &[u8], header_len: usize) -> Option<MemoryDeviceEnt
     };
 
     Some(MemoryDeviceEntry {
-        physical_memory_array_handle,
         total_width_bits: total_width,
         data_width_bits: data_width,
         size_bytes,
@@ -551,13 +505,9 @@ fn parse_memory_device(data: &[u8], header_len: usize) -> Option<MemoryDeviceEnt
         speed_mts,
         manufacturer,
         serial_number,
-        asset_tag,
         part_number,
         rank,
-        extended_size_mb,
         configured_speed_mts,
-        min_voltage_mv,
-        max_voltage_mv,
         configured_voltage_mv,
     })
 }
@@ -713,7 +663,7 @@ mod tests {
         buf.push(header_len as u8);
         buf.push(0x00); // handle low
         buf.push(0x00); // handle high
-        // Formatted area
+                        // Formatted area
         buf.extend_from_slice(formatted);
         // String section
         if strings.is_empty() {
@@ -784,7 +734,6 @@ mod tests {
         assert_eq!(bios.vendor.as_deref(), Some("ACME Corp"));
         assert_eq!(bios.version.as_deref(), Some("v1.0"));
         assert_eq!(bios.release_date.as_deref(), Some("01/01/2025"));
-        assert_eq!(bios.rom_size_bytes, Some(1024 * 1024));
         assert_eq!(bios.major_release, Some(1));
         assert_eq!(bios.minor_release, Some(29));
     }
@@ -806,7 +755,7 @@ mod tests {
         formatted[1] = 2; // product name
         formatted[2] = 0; // version (none)
         formatted[3] = 0; // serial (none)
-        // UUID at offset 0x08 - 0x04 = 0x04
+                          // UUID at offset 0x08 - 0x04 = 0x04
         formatted[4..20].copy_from_slice(&uuid_bytes);
         // 0x19 - 0x04 = 0x15
         formatted[0x15] = 3; // SKU string idx
@@ -861,13 +810,13 @@ mod tests {
         // Total Width at 0x08 (offset 4)
         formatted[4] = 72;
         formatted[5] = 0; // 72 bits
-        // Data Width at 0x0A (offset 6)
+                          // Data Width at 0x0A (offset 6)
         formatted[6] = 64;
         formatted[7] = 0; // 64 bits
-        // Size at 0x0C (offset 8) = 16384 MB = 16 GiB
+                          // Size at 0x0C (offset 8) = 16384 MB = 16 GiB
         formatted[8] = 0x00;
         formatted[9] = 0x40; // 0x4000 = 16384
-        // Form Factor at 0x0E (offset 10) = DIMM (0x09)
+                             // Form Factor at 0x0E (offset 10) = DIMM (0x09)
         formatted[10] = 0x09;
         // Device Locator at 0x10 (offset 12) = string 1
         formatted[12] = 1;
@@ -878,10 +827,10 @@ mod tests {
         // Type Detail at 0x13 (offset 15) = Synchronous | Unbuffered
         formatted[15] = 0x80; // bit 7 = Synchronous
         formatted[16] = 0x40; // bit 14 (in high byte) = Unbuffered
-        // Speed at 0x15 (offset 17) = 3200 MT/s
+                              // Speed at 0x15 (offset 17) = 3200 MT/s
         formatted[17] = 0x80;
         formatted[18] = 0x0C; // 0x0C80 = 3200
-        // Manufacturer at 0x17 (offset 19) = string 3
+                              // Manufacturer at 0x17 (offset 19) = string 3
         formatted[19] = 3;
         // Serial at 0x18 (offset 20) = string 4
         formatted[20] = 4;
@@ -898,7 +847,7 @@ mod tests {
         // Min Voltage at 0x22 (offset 30) = 1200 mV
         formatted[30] = 0xB0;
         formatted[31] = 0x04; // 0x04B0 = 1200
-        // Max Voltage at 0x24 (offset 32) = 1200 mV
+                              // Max Voltage at 0x24 (offset 32) = 1200 mV
         formatted[32] = 0xB0;
         formatted[33] = 0x04;
         // Configured Voltage at 0x26 (offset 34) = 1200 mV

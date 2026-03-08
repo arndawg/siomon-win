@@ -24,6 +24,18 @@ pub fn collect() -> Vec<AudioDevice> {
     devices
 }
 
+pub struct AudioCollector;
+
+impl crate::collectors::Collector for AudioCollector {
+    fn name(&self) -> &str {
+        "audio"
+    }
+
+    fn collect_into(&self, info: &mut crate::model::system::SystemInfo) {
+        info.audio = collect();
+    }
+}
+
 fn parse_card(header: &str) -> Option<AudioDevice> {
     // Format: " 0 [NVidia         ]: HDA-Intel - HDA NVidia"
     let header = header.trim();

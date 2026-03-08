@@ -11,8 +11,6 @@ use crate::platform::port_io::PortIo;
 pub struct SuperIoChip {
     pub chip: ChipType,
     pub chip_id: u16,
-    pub revision: u8,
-    pub config_port: u16,
     pub hwm_base: u16,
 }
 
@@ -32,7 +30,6 @@ pub enum ChipType {
     Ite8686,
     Ite8688,
     Ite8689,
-    Fintek71889,
     Unknown,
 }
 
@@ -53,7 +50,6 @@ impl std::fmt::Display for ChipType {
             Self::Ite8686 => write!(f, "IT8686E"),
             Self::Ite8688 => write!(f, "IT8688E"),
             Self::Ite8689 => write!(f, "IT8689E"),
-            Self::Fintek71889 => write!(f, "F71889"),
             Self::Unknown => write!(f, "Unknown"),
         }
     }
@@ -169,8 +165,6 @@ fn probe_nuvoton(pio: &mut PortIo, config_port: u16) -> Option<SuperIoChip> {
     Some(SuperIoChip {
         chip,
         chip_id,
-        revision: id_lo,
-        config_port,
         hwm_base,
     })
 }
@@ -227,8 +221,6 @@ fn probe_ite(pio: &mut PortIo, config_port: u16) -> Option<SuperIoChip> {
     Some(SuperIoChip {
         chip,
         chip_id,
-        revision: id_lo,
-        config_port,
         hwm_base,
     })
 }
@@ -280,7 +272,6 @@ pub fn is_kernel_driver_loaded(chip: &ChipType) -> bool {
         | ChipType::Nct6798
         | ChipType::Nct6799 => "nct6775",
         ChipType::Ite8686 | ChipType::Ite8688 | ChipType::Ite8689 => "it87",
-        ChipType::Fintek71889 => "f71882fg",
         ChipType::Unknown => return false,
     };
 

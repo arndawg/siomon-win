@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MotherboardInfo {
     pub manufacturer: Option<String>,
     pub product_name: Option<String>,
@@ -17,7 +17,7 @@ pub struct MotherboardInfo {
     pub me_version: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BiosInfo {
     pub vendor: Option<String>,
     pub version: Option<String>,

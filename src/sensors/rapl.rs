@@ -96,3 +96,13 @@ impl RaplSource {
         readings
     }
 }
+
+impl crate::sensors::SensorSource for RaplSource {
+    fn name(&self) -> &str {
+        "rapl"
+    }
+
+    fn poll(&mut self) -> Vec<(SensorId, SensorReading)> {
+        RaplSource::poll(self)
+    }
+}

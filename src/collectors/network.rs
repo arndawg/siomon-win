@@ -25,6 +25,20 @@ pub fn collect(physical_only: bool) -> Vec<NetworkAdapter> {
     adapters
 }
 
+pub struct NetworkCollector {
+    pub physical_only: bool,
+}
+
+impl crate::collectors::Collector for NetworkCollector {
+    fn name(&self) -> &str {
+        "network"
+    }
+
+    fn collect_into(&self, info: &mut crate::model::system::SystemInfo) {
+        info.network = collect(self.physical_only);
+    }
+}
+
 fn collect_adapter(name: &str, path: &Path, is_physical: bool) -> Option<NetworkAdapter> {
     let operstate =
         sysfs::read_string_optional(&path.join("operstate")).unwrap_or_else(|| "unknown".into());

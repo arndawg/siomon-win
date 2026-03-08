@@ -423,6 +423,20 @@ fn enrich_nvidia(
     }
 }
 
+pub struct GpuCollector {
+    pub no_nvidia: bool,
+}
+
+impl crate::collectors::Collector for GpuCollector {
+    fn name(&self) -> &str {
+        "gpu"
+    }
+
+    fn collect_into(&self, info: &mut crate::model::system::SystemInfo) {
+        info.gpus = collect(self.no_nvidia);
+    }
+}
+
 /// Normalize a PCI bus address for comparison.
 ///
 /// NVML returns "00000000:11:00.0" (8-digit domain), sysfs uses "0000:11:00.0"

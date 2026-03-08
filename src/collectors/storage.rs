@@ -35,6 +35,18 @@ pub fn collect() -> Vec<StorageDevice> {
     devices
 }
 
+pub struct StorageCollector;
+
+impl crate::collectors::Collector for StorageCollector {
+    fn name(&self) -> &str {
+        "storage"
+    }
+
+    fn collect_into(&self, info: &mut crate::model::system::SystemInfo) {
+        info.storage = collect();
+    }
+}
+
 fn is_partition(block_path: &Path) -> bool {
     block_path.join("partition").exists()
 }

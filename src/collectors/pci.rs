@@ -140,6 +140,18 @@ fn resolve_class_names(class_code: u32) -> (Option<String>, Option<String>) {
     (class_name, subclass_name)
 }
 
+pub struct PciCollector;
+
+impl crate::collectors::Collector for PciCollector {
+    fn name(&self) -> &str {
+        "pci"
+    }
+
+    fn collect_into(&self, info: &mut crate::model::system::SystemInfo) {
+        info.pci_devices = collect();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

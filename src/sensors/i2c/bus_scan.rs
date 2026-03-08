@@ -3,7 +3,6 @@ use crate::platform::sysfs;
 /// A discovered I2C bus with its adapter classification.
 pub struct I2cBus {
     pub bus_num: u32,
-    pub name: String,
     pub adapter_type: I2cAdapterType,
 }
 
@@ -79,7 +78,6 @@ pub fn enumerate_buses() -> Vec<I2cBus> {
 
         buses.push(I2cBus {
             bus_num,
-            name,
             adapter_type,
         });
     }
@@ -97,21 +95,6 @@ pub fn enumerate_smbus_adapters() -> Vec<I2cBus> {
         .into_iter()
         .filter(|b| b.adapter_type.is_smbus())
         .collect()
-}
-
-/// Probe a single I2C address by attempting an SMBus byte read.
-///
-/// Returns `true` if a device responds at the given bus/address.
-pub fn probe_address(bus: u32, addr: u16) -> bool {
-    use super::smbus_io::SmbusDevice;
-
-    let dev = match SmbusDevice::open(bus, addr) {
-        Ok(d) => d,
-        Err(_) => return false,
-    };
-
-    // A simple register-0 read is the least intrusive probe
-    dev.read_byte_data(0x00).is_ok()
 }
 
 #[cfg(test)]

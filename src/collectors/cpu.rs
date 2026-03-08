@@ -663,6 +663,21 @@ fn parse_address_sizes(entry: Option<&HashMap<String, String>>) -> (Option<u8>, 
     (physical, virtual_)
 }
 
+pub struct CpuCollector;
+
+impl crate::collectors::Collector for CpuCollector {
+    fn name(&self) -> &str {
+        "cpu"
+    }
+
+    fn collect_into(&self, info: &mut crate::model::system::SystemInfo) {
+        info.cpus = collect().unwrap_or_else(|e| {
+            log::warn!("CPU collection failed: {e}");
+            Vec::new()
+        });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

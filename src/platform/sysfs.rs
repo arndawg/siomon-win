@@ -1,44 +1,5 @@
-use crate::error::{SinfoError, SysfsError};
 use std::fs;
 use std::path::{Path, PathBuf};
-
-pub fn read_string(path: &Path) -> crate::error::Result<String> {
-    fs::read_to_string(path)
-        .map(|s| s.trim().to_string())
-        .map_err(|e| {
-            let source = match e.kind() {
-                std::io::ErrorKind::NotFound => SysfsError::NotFound,
-                std::io::ErrorKind::PermissionDenied => SysfsError::PermissionDenied,
-                _ => SysfsError::Io(e),
-            };
-            SinfoError::Sysfs {
-                path: path.to_path_buf(),
-                source,
-            }
-        })
-}
-
-pub fn read_u64(path: &Path) -> crate::error::Result<u64> {
-    let s = read_string(path)?;
-    parse_int_flexible(&s).map_err(|_| SinfoError::Sysfs {
-        path: path.to_path_buf(),
-        source: SysfsError::Parse {
-            expected: "u64",
-            actual: s,
-        },
-    })
-}
-
-pub fn read_i64(path: &Path) -> crate::error::Result<i64> {
-    let s = read_string(path)?;
-    s.parse::<i64>().map_err(|_| SinfoError::Sysfs {
-        path: path.to_path_buf(),
-        source: SysfsError::Parse {
-            expected: "i64",
-            actual: s,
-        },
-    })
-}
 
 pub fn read_string_optional(path: &Path) -> Option<String> {
     fs::read_to_string(path).ok().and_then(|s| {

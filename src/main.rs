@@ -170,20 +170,24 @@ fn run_sensor_snapshot(cli: &Cli, label_overrides: &std::collections::HashMap<St
 }
 
 fn collect_all(cli: &Cli) -> SystemInfo {
-    let cpus = collectors::cpu::collect().unwrap_or_else(|e| {
-        log::warn!("CPU collection failed: {e}");
-        Vec::new()
-    });
+    use collectors::Collector;
 
-    let memory = collectors::memory::collect();
-    let motherboard = collectors::motherboard::collect();
-    let gpus = collectors::gpu::collect(cli.no_nvidia);
-    let storage = collectors::storage::collect();
-    let network = collectors::network::collect(true);
-    let pci_devices = collectors::pci::collect();
-    let audio = collectors::audio::collect();
-    let usb_devices = collectors::usb::collect();
-    let batteries = collectors::battery::collect();
+    let all: Vec<Box<dyn Collector>> = vec![
+        Box::new(collectors::cpu::CpuCollector),
+        Box::new(collectors::memory::MemoryCollector),
+        Box::new(collectors::motherboard::MotherboardCollector),
+        Box::new(collectors::gpu::GpuCollector {
+            no_nvidia: cli.no_nvidia,
+        }),
+        Box::new(collectors::storage::StorageCollector),
+        Box::new(collectors::network::NetworkCollector {
+            physical_only: true,
+        }),
+        Box::new(collectors::pci::PciCollector),
+        Box::new(collectors::audio::AudioCollector),
+        Box::new(collectors::usb::UsbCollector),
+        Box::new(collectors::battery::BatteryCollector),
+    ];
 
     let hostname =
         platform::sysfs::read_string_optional(std::path::Path::new("/proc/sys/kernel/hostname"))
@@ -193,26 +197,31 @@ fn collect_all(cli: &Cli) -> SystemInfo {
         platform::sysfs::read_string_optional(std::path::Path::new("/proc/sys/kernel/osrelease"))
             .unwrap_or_else(|| "unknown".into());
 
-    let os_name = read_os_name();
-
-    SystemInfo {
+    let mut info = SystemInfo {
         timestamp: Utc::now(),
         sinfo_version: env!("CARGO_PKG_VERSION").to_string(),
         hostname,
         kernel_version,
-        os_name,
-        cpus,
-        memory,
-        motherboard,
-        gpus,
-        storage,
-        network,
-        audio,
-        usb_devices,
-        pci_devices,
-        batteries,
+        os_name: read_os_name(),
+        cpus: Vec::new(),
+        memory: Default::default(),
+        motherboard: Default::default(),
+        gpus: Vec::new(),
+        storage: Vec::new(),
+        network: Vec::new(),
+        audio: Vec::new(),
+        usb_devices: Vec::new(),
+        pci_devices: Vec::new(),
+        batteries: Vec::new(),
         sensors: None,
+    };
+
+    for collector in &all {
+        log::debug!("Collecting: {}", collector.name());
+        collector.collect_into(&mut info);
     }
+
+    info
 }
 
 fn read_os_name() -> Option<String> {
@@ -245,13 +254,11 @@ fn start_csv_logger(
 
     let state = state.clone();
     let interval = std::time::Duration::from_millis(cli.interval);
-    let handle = std::thread::spawn(move || {
-        loop {
-            std::thread::sleep(interval);
-            if let Err(e) = logger.write_row(&state) {
-                log::warn!("CSV write error: {e}");
-                break;
-            }
+    let handle = std::thread::spawn(move || loop {
+        std::thread::sleep(interval);
+        if let Err(e) = logger.write_row(&state) {
+            log::warn!("CSV write error: {e}");
+            break;
         }
     });
     Some(handle)

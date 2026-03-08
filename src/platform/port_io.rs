@@ -31,6 +31,7 @@ impl PortIo {
     }
 
     /// Check if direct I/O port access is available on this system.
+    #[allow(dead_code)] // Used in tests
     pub fn is_available() -> bool {
         std::path::Path::new("/dev/port").exists() && unsafe { libc::geteuid() } == 0
     }

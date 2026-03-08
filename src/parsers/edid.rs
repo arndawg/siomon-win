@@ -1,5 +1,3 @@
-use crate::platform::sysfs;
-
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct EdidInfo {
     pub manufacturer: String,
@@ -135,20 +133,4 @@ pub fn parse_edid(data: &[u8]) -> Option<EdidInfo> {
         preferred_height,
         preferred_refresh_hz,
     })
-}
-
-/// Discover EDID info for all connected monitors.
-pub fn collect_all() -> Vec<EdidInfo> {
-    let mut monitors = Vec::new();
-    for path in sysfs::glob_paths("/sys/class/drm/card*-*") {
-        // Only process connected outputs
-        let status = sysfs::read_string_optional(&path.join("status"));
-        if status.as_deref() != Some("connected") {
-            continue;
-        }
-        if let Some(info) = parse_from_drm(&path) {
-            monitors.push(info);
-        }
-    }
-    monitors
 }

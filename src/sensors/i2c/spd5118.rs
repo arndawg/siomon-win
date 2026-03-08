@@ -107,6 +107,7 @@ impl Spd5118Source {
     }
 
     /// Number of discovered DIMM sensors.
+    #[allow(dead_code)] // Used in tests
     pub fn dimm_count(&self) -> usize {
         self.dimms.len()
     }
@@ -195,6 +196,16 @@ fn read_temperature(bus: u32, addr: u16) -> std::io::Result<f64> {
     };
 
     Ok(temp_c)
+}
+
+impl crate::sensors::SensorSource for Spd5118Source {
+    fn name(&self) -> &str {
+        "i2c"
+    }
+
+    fn poll(&mut self) -> Vec<(SensorId, SensorReading)> {
+        Spd5118Source::poll(self)
+    }
 }
 
 #[cfg(test)]

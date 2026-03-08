@@ -232,6 +232,16 @@ impl Ite87xxSource {
     }
 }
 
+impl crate::sensors::SensorSource for Ite87xxSource {
+    fn name(&self) -> &str {
+        "superio"
+    }
+
+    fn poll(&mut self) -> Vec<(SensorId, SensorReading)> {
+        Ite87xxSource::poll(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

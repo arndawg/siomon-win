@@ -60,10 +60,6 @@ const FAN_LABELS: [&str; 7] = [
     "Fan 1", "Fan 2", "Fan 3", "Fan 4", "Fan 5", "Fan 6", "Fan 7",
 ];
 
-// NCT6779+ stores RPM directly in the fan count register (fan_from_reg_rpm).
-// NCT6775/6776 use the traditional formula: RPM = 1350000 / count.
-const FAN_RPM_DIRECT: bool = true; // NCT6779+ (all chips we support)
-
 // Temperature source selection registers for NCT6798
 // From kernel nct6775-core.c: NCT6798_REG_TEMP_SOURCE[]
 const TEMP_SOURCE_REGS: [u16; 8] = [0x621, 0x622, 0xC26, 0xC27, 0xC28, 0xC29, 0xC2A, 0xC2B];
@@ -382,6 +378,16 @@ impl Nct67xxSource {
         let hi = self.read_register(pio, reg)? as u16;
         let lo = self.read_register(pio, reg + 1)? as u16;
         Some((hi << 8) | lo)
+    }
+}
+
+impl crate::sensors::SensorSource for Nct67xxSource {
+    fn name(&self) -> &str {
+        "superio"
+    }
+
+    fn poll(&mut self) -> Vec<(SensorId, SensorReading)> {
+        Nct67xxSource::poll(self)
     }
 }
 

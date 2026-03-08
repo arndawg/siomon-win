@@ -57,6 +57,16 @@ impl GpuSensorSource {
     }
 }
 
+impl crate::sensors::SensorSource for GpuSensorSource {
+    fn name(&self) -> &str {
+        "gpu"
+    }
+
+    fn poll(&mut self) -> Vec<(SensorId, SensorReading)> {
+        GpuSensorSource::poll(self)
+    }
+}
+
 fn discover_nvidia() -> NvidiaState {
     #[cfg(feature = "nvidia")]
     {
@@ -105,11 +115,19 @@ fn discover_amd() -> Vec<AmdGpu> {
 
         let busy_path = {
             let p = device_path.join("gpu_busy_percent");
-            if p.exists() { Some(p) } else { None }
+            if p.exists() {
+                Some(p)
+            } else {
+                None
+            }
         };
         let vram_used_path = {
             let p = device_path.join("mem_info_vram_used");
-            if p.exists() { Some(p) } else { None }
+            if p.exists() {
+                Some(p)
+            } else {
+                None
+            }
         };
         let vram_total = sysfs::read_u64_optional(&device_path.join("mem_info_vram_total"));
 

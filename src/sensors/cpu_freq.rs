@@ -65,3 +65,13 @@ impl CpuFreqSource {
         readings
     }
 }
+
+impl crate::sensors::SensorSource for CpuFreqSource {
+    fn name(&self) -> &str {
+        "cpufreq"
+    }
+
+    fn poll(&mut self) -> Vec<(SensorId, SensorReading)> {
+        CpuFreqSource::poll(self)
+    }
+}

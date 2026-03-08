@@ -125,6 +125,18 @@ fn detect_chipset() -> Option<String> {
     }
 }
 
+pub struct MotherboardCollector;
+
+impl crate::collectors::Collector for MotherboardCollector {
+    fn name(&self) -> &str {
+        "motherboard"
+    }
+
+    fn collect_into(&self, info: &mut crate::model::system::SystemInfo) {
+        info.motherboard = collect();
+    }
+}
+
 fn chassis_type_name(code: u8) -> String {
     match code {
         1 => "Other",

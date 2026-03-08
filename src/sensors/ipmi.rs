@@ -217,6 +217,16 @@ fn refine_unit(ipmi_unit: &Unit) -> Option<SensorUnit> {
     }
 }
 
+impl crate::sensors::SensorSource for IpmiSource {
+    fn name(&self) -> &str {
+        "ipmi"
+    }
+
+    fn poll(&mut self) -> Vec<(SensorId, SensorReading)> {
+        IpmiSource::poll(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
