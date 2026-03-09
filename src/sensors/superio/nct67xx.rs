@@ -6,11 +6,8 @@
 
 use crate::db::voltage_scaling::{self, VoltageChannel};
 use crate::model::sensor::{SensorCategory, SensorId, SensorReading, SensorUnit};
-use crate::platform::port_io::PortIo;
+use crate::platform::sinfo_io::HwmAccess;
 use crate::sensors::superio::chip_detect::{ChipType, SuperIoChip};
-
-// NCT6775 register offsets (banked: high byte = bank, low byte = register)
-const REG_BANK: u8 = 0x4E;
 
 // Voltage registers (bank 4, 18 channels for NCT6798)
 const VOLTAGE_REGS: [u16; 18] = [
@@ -50,10 +47,6 @@ const TEMP_EXTRA_REGS: [(u16, &str); 5] = [
 // Fan count registers (16-bit, bank 4)
 // From kernel nct6775-core.c: NCT6779_REG_FAN[]
 const FAN_REGS: [u16; 7] = [0x4C0, 0x4C2, 0x4C4, 0x4C6, 0x4C8, 0x4CA, 0x4CE];
-
-// Fan pulse registers (bank 6) — pulses per revolution configuration
-// From kernel: NCT6779_REG_FAN_PULSES[]
-const FAN_PULSE_REGS: [u16; 7] = [0x644, 0x645, 0x646, 0x647, 0x648, 0x649, 0x64F];
 
 // Default fan labels
 const FAN_LABELS: [&str; 7] = [
@@ -101,22 +94,30 @@ const TEMP_SOURCE_LABELS: &[&str] = &[
 
 pub struct Nct67xxSource {
     chip: SuperIoChip,
-    addr_port: u16,
-    data_port: u16,
     board_name: Option<String>,
+    hwm_access: Option<HwmAccess>,
 }
 
 impl Nct67xxSource {
     /// Create a new NCT67xx sensor source from a detected chip.
+    ///
+    /// Tries to open the sinfo_io kernel module for atomic register access,
+    /// falling back to /dev/port if unavailable.
     pub fn new(chip: SuperIoChip) -> Self {
-        let addr_port = chip.hwm_base + 5;
-        let data_port = chip.hwm_base + 6;
         let board_name = crate::db::sensor_labels::read_board_name();
+        let hwm_access = HwmAccess::open(chip.hwm_base);
+        if let Some(ref access) = hwm_access {
+            if access.is_atomic() {
+                log::info!(
+                    "NCT67xx: using sinfo_io (atomic) for HWM base 0x{:04X}",
+                    chip.hwm_base
+                );
+            }
+        }
         Self {
             chip,
-            addr_port,
-            data_port,
             board_name,
+            hwm_access,
         }
     }
 
@@ -139,12 +140,13 @@ impl Nct67xxSource {
     }
 
     /// Poll all sensors and return readings.
-    pub fn poll(&self) -> Vec<(SensorId, SensorReading)> {
-        let mut pio = match PortIo::open() {
-            Some(p) => p,
+    pub fn poll(&mut self) -> Vec<(SensorId, SensorReading)> {
+        let access = match self.hwm_access.as_mut() {
+            Some(a) => a,
             None => return Vec::new(),
         };
 
+        let hwm_base = self.chip.hwm_base;
         let mut readings = Vec::new();
         let chip_name = format!("{}", self.chip.chip).to_lowercase();
 
@@ -152,24 +154,24 @@ impl Nct67xxSource {
         let voltage_config = voltage_scaling::lookup_nct6798(self.board_name.as_deref())
             .unwrap_or_else(voltage_scaling::default_nct6798);
 
-        self.read_voltages(&mut pio, &chip_name, voltage_config, &mut readings);
-        self.read_temperatures(&mut pio, &chip_name, &mut readings);
-        self.read_fans(&mut pio, &chip_name, &mut readings);
-        self.read_temp_sources(&mut pio, &chip_name, &mut readings);
+        Self::read_voltages(access, hwm_base, &chip_name, voltage_config, &mut readings);
+        Self::read_temperatures(access, hwm_base, &chip_name, &mut readings);
+        Self::read_fans(access, hwm_base, &chip_name, &mut readings);
+        Self::read_temp_sources(access, hwm_base, &chip_name, &mut readings);
 
         readings
     }
 
     fn read_voltages(
-        &self,
-        pio: &mut PortIo,
+        access: &mut HwmAccess,
+        hwm_base: u16,
         chip_name: &str,
         voltage_config: &[VoltageChannel; 18],
         readings: &mut Vec<(SensorId, SensorReading)>,
     ) {
         let scale = &VOLTAGE_SCALE_NCT6798;
         for (i, &reg) in VOLTAGE_REGS.iter().enumerate() {
-            if let Some(raw) = self.read_register(pio, reg) {
+            if let Some(raw) = access.read_register(hwm_base, reg) {
                 if raw == 0 {
                     continue; // Unconnected input
                 }
@@ -198,14 +200,14 @@ impl Nct67xxSource {
     }
 
     fn read_temperatures(
-        &self,
-        pio: &mut PortIo,
+        access: &mut HwmAccess,
+        hwm_base: u16,
         chip_name: &str,
         readings: &mut Vec<(SensorId, SensorReading)>,
     ) {
         // Main temperature registers
         for &(reg, label) in &TEMP_REGS {
-            if let Some(raw) = self.read_register(pio, reg) {
+            if let Some(raw) = access.read_register(hwm_base, reg) {
                 let temp = raw as i8 as f64;
                 if temp == 0.0 || temp == -128.0 || temp > 127.0 {
                     continue;
@@ -231,15 +233,15 @@ impl Nct67xxSource {
 
         // Extra temperature registers (half-degree resolution)
         for &(reg, label) in &TEMP_EXTRA_REGS {
-            if let Some(raw) = self.read_register(pio, reg) {
+            if let Some(raw) = access.read_register(hwm_base, reg) {
                 let temp = raw as i8 as f64;
                 if temp == 0.0 || temp == -128.0 {
                     continue;
                 }
 
                 // Try reading fractional part (next register)
-                let frac = self
-                    .read_register(pio, reg + 1)
+                let frac = access
+                    .read_register(hwm_base, reg + 1)
                     .map(|f| (f >> 7) as f64 * 0.5)
                     .unwrap_or(0.0);
                 let temp = temp + frac;
@@ -264,22 +266,14 @@ impl Nct67xxSource {
     }
 
     fn read_fans(
-        &self,
-        pio: &mut PortIo,
+        access: &mut HwmAccess,
+        hwm_base: u16,
         chip_name: &str,
         readings: &mut Vec<(SensorId, SensorReading)>,
     ) {
-        // Read fan pulse settings for correct RPM calculation
-        let mut fan_pulses = [2u8; 7]; // Default: 2 pulses per revolution
-        for (i, &reg) in FAN_PULSE_REGS.iter().enumerate() {
-            if let Some(val) = self.read_register(pio, reg) {
-                // Pulses per rev: 0=1, 1=2, 2=3, 3=4 (bits 1:0)
-                let p = (val & 0x03) + 1;
-                if p > 0 {
-                    fan_pulses[i] = p;
-                }
-            }
-        }
+        // Note: fan pulse registers (FAN_PULSE_REGS) are not read here because
+        // NCT6779+ stores RPM directly in the fan count registers. Pulse config
+        // would only be needed for older NCT6775/6776 count-based RPM conversion.
 
         for (i, &reg) in FAN_REGS.iter().enumerate() {
             let id = SensorId {
@@ -288,7 +282,7 @@ impl Nct67xxSource {
                 sensor: format!("fan{}", i + 1),
             };
 
-            if let Some(count) = self.read_word(pio, reg) {
+            if let Some(count) = Self::read_word(access, hwm_base, reg) {
                 if count == 0 || count == 0xFFFF {
                     readings.push((
                         id,
@@ -322,14 +316,14 @@ impl Nct67xxSource {
     /// Read temperature source selection registers to determine what each
     /// temp monitoring slot is actually measuring.
     fn read_temp_sources(
-        &self,
-        pio: &mut PortIo,
+        access: &mut HwmAccess,
+        hwm_base: u16,
         chip_name: &str,
         readings: &mut Vec<(SensorId, SensorReading)>,
     ) {
         // Only read source mapping — store as metadata-style sensors
         for (i, &reg) in TEMP_SOURCE_REGS.iter().enumerate() {
-            if let Some(src_val) = self.read_register(pio, reg) {
+            if let Some(src_val) = access.read_register(hwm_base, reg) {
                 let src_idx = (src_val & 0x1F) as usize;
                 let label = if src_idx < TEMP_SOURCE_LABELS.len() {
                     let l = TEMP_SOURCE_LABELS[src_idx];
@@ -359,24 +353,10 @@ impl Nct67xxSource {
         }
     }
 
-    /// Read a single byte from a banked HWM register.
-    fn read_register(&self, pio: &mut PortIo, reg: u16) -> Option<u8> {
-        let bank = (reg >> 8) as u8;
-        let addr = (reg & 0xFF) as u8;
-
-        // Select bank
-        pio.write_byte(self.addr_port, REG_BANK).ok()?;
-        pio.write_byte(self.data_port, bank).ok()?;
-
-        // Read register
-        pio.write_byte(self.addr_port, addr).ok()?;
-        pio.read_byte(self.data_port).ok()
-    }
-
     /// Read a 16-bit word from two consecutive registers.
-    fn read_word(&self, pio: &mut PortIo, reg: u16) -> Option<u16> {
-        let hi = self.read_register(pio, reg)? as u16;
-        let lo = self.read_register(pio, reg + 1)? as u16;
+    fn read_word(access: &mut HwmAccess, hwm_base: u16, reg: u16) -> Option<u16> {
+        let hi = access.read_register(hwm_base, reg)? as u16;
+        let lo = access.read_register(hwm_base, reg + 1)? as u16;
         Some((hi << 8) | lo)
     }
 }
@@ -387,7 +367,7 @@ impl crate::sensors::SensorSource for Nct67xxSource {
     }
 
     fn poll(&mut self) -> Vec<(SensorId, SensorReading)> {
-        Nct67xxSource::poll(self)
+        self.poll()
     }
 }
 

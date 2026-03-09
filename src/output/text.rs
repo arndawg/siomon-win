@@ -270,18 +270,17 @@ pub fn print_summary(info: &SystemInfo) {
                     pcie_str
                 );
                 println!();
-
-                if let Some(ref smart) = nvme.smart {
-                    print!("    SMART: {}°C", smart.temperature_celsius);
-                    if smart.percentage_used > 0 {
-                        print!(", {}% used", smart.percentage_used);
-                    }
-                    print!(", {} hours", smart.power_on_hours);
-                    if smart.total_bytes_written > 0 {
-                        print!(", {} written", format_bytes_u128(smart.total_bytes_written));
-                    }
-                    println!();
+            }
+            if let Some(ref smart) = dev.smart {
+                print!("    SMART: {}°C", smart.temperature_celsius);
+                if smart.percentage_used > 0 {
+                    print!(", {}% used", smart.percentage_used);
                 }
+                print!(", {} hours", smart.power_on_hours);
+                if smart.total_bytes_written > 0 {
+                    print!(", {} written", format_bytes_u128(smart.total_bytes_written));
+                }
+                println!();
             }
         }
         println!();

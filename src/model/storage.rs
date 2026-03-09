@@ -13,6 +13,7 @@ pub struct StorageDevice {
     pub logical_sector_size: u32,
     pub physical_sector_size: u32,
     pub nvme: Option<NvmeDetails>,
+    pub smart: Option<SmartData>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

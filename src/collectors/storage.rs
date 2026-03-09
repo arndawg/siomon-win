@@ -1,5 +1,5 @@
 use crate::model::storage::{NvmeDetails, SmartData, StorageDevice, StorageInterface};
-use crate::platform::{nvme_ioctl, sysfs};
+use crate::platform::{nvme_ioctl, sata_ioctl, sysfs};
 use std::path::Path;
 
 pub fn collect() -> Vec<StorageDevice> {
@@ -66,10 +66,13 @@ fn collect_device(name: &str, block_path: &Path) -> Option<StorageDevice> {
     let physical_sector_size =
         sysfs::read_u32_optional(&block_path.join("queue/physical_block_size")).unwrap_or(512);
 
-    let (interface, model, serial, firmware, nvme) = if name.starts_with("nvme") {
-        collect_nvme(name, block_path)
+    let (interface, model, serial, firmware, nvme, smart) = if name.starts_with("nvme") {
+        let (iface, model, serial, fw, nvme_details) = collect_nvme(name, block_path);
+        let smart = nvme_details.as_ref().and_then(|n| n.smart.clone());
+        (iface, model, serial, fw, nvme_details, smart)
     } else {
-        collect_ata_scsi(block_path)
+        let (iface, model, serial, fw, smart) = collect_ata_scsi(name, block_path);
+        (iface, model, serial, fw, None, smart)
     };
 
     Some(StorageDevice {
@@ -84,6 +87,7 @@ fn collect_device(name: &str, block_path: &Path) -> Option<StorageDevice> {
         logical_sector_size,
         physical_sector_size,
         nvme,
+        smart,
     })
 }
 
@@ -145,13 +149,14 @@ fn collect_nvme(
 }
 
 fn collect_ata_scsi(
+    name: &str,
     block_path: &Path,
 ) -> (
     StorageInterface,
     Option<String>,
     Option<String>,
     Option<String>,
-    Option<NvmeDetails>,
+    Option<SmartData>,
 ) {
     let dev_path = block_path.join("device");
     let model = sysfs::read_string_optional(&dev_path.join("model")).or_else(|| {
@@ -161,7 +166,13 @@ fn collect_ata_scsi(
     let firmware = sysfs::read_string_optional(&dev_path.join("rev"));
 
     let interface = detect_interface(block_path);
-    (interface, model, serial, firmware, None)
+
+    // Try reading SATA SMART data via SG_IO ioctl
+    let smart_path = format!("/dev/{}", name);
+    let smart = sata_ioctl::read_sata_smart(Path::new(&smart_path))
+        .map(|ata| sata_ioctl::sata_smart_to_smart_data(&ata));
+
+    (interface, model, serial, firmware, smart)
 }
 
 fn read_nvme_smart_data(ctrl_name: &str) -> Option<SmartData> {

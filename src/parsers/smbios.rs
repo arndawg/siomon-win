@@ -657,13 +657,8 @@ mod tests {
     /// and strings.
     fn build_structure(stype: u8, formatted: &[u8], strings: &[&str]) -> Vec<u8> {
         let header_len = 4 + formatted.len();
-        let mut buf = Vec::new();
-        // Header
-        buf.push(stype);
-        buf.push(header_len as u8);
-        buf.push(0x00); // handle low
-        buf.push(0x00); // handle high
-                        // Formatted area
+        let mut buf = vec![stype, header_len as u8, 0x00, 0x00];
+        // Formatted area
         buf.extend_from_slice(formatted);
         // String section
         if strings.is_empty() {

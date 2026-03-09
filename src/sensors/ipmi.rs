@@ -3,8 +3,15 @@
 //! Provides access to BMC-managed sensors including DIMM temperatures,
 //! per-CCD voltages, PSU telemetry, and labeled fan RPMs. Works on
 //! server and workstation boards with a BMC (requires /dev/ipmi0 + root).
+//!
+//! BMC round-trips are slow (~30-50ms per sensor, 800ms+ total). To avoid
+//! blocking the main poll loop, IPMI runs in its own background thread on
+//! a 5-second cycle and exposes readings via shared state.
 
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, RwLock};
+use std::thread;
 use std::time::Duration;
 
 use ipmi_rs::connection::CompletionErrorCode;
@@ -14,6 +21,9 @@ use ipmi_rs::storage::sdr::{SensorType, Unit};
 use ipmi_rs::{File as IpmiFile, Ipmi, IpmiError};
 
 use crate::model::sensor::{SensorCategory, SensorId, SensorReading, SensorUnit};
+
+/// How often the background thread polls the BMC.
+const IPMI_POLL_INTERVAL: Duration = Duration::from_secs(5);
 
 /// Pre-loaded SDR entry for a full (threshold) sensor.
 struct SdrEntry {
@@ -30,22 +40,21 @@ struct SdrEntry {
     b_exponent: i8,
 }
 
+type SharedReadings = Arc<RwLock<Vec<(SensorId, SensorReading)>>>;
+
 pub struct IpmiSource {
-    ipmi: Option<Ipmi<IpmiFile>>,
-    entries: Vec<SdrEntry>,
+    readings: SharedReadings,
+    available: bool,
+    _stop: Option<Arc<AtomicBool>>,
 }
 
 impl IpmiSource {
     pub fn discover() -> Self {
-        let dev_path = find_ipmi_device();
-        let dev_path = match dev_path {
+        let dev_path = match find_ipmi_device() {
             Some(p) => p,
             None => {
                 log::debug!("IPMI: no /dev/ipmiN device found");
-                return Self {
-                    ipmi: None,
-                    entries: Vec::new(),
-                };
+                return Self::unavailable();
             }
         };
 
@@ -53,10 +62,7 @@ impl IpmiSource {
             Ok(f) => f,
             Err(e) => {
                 log::debug!("IPMI: failed to open {}: {e}", dev_path.display());
-                return Self {
-                    ipmi: None,
-                    entries: Vec::new(),
-                };
+                return Self::unavailable();
             }
         };
 
@@ -71,7 +77,7 @@ impl IpmiSource {
                 let sensor_type = full.ty();
                 let (category, unit) = match map_sensor_type(sensor_type) {
                     Some(cu) => cu,
-                    None => continue, // Skip non-analog sensors (chassis intrusion, etc.)
+                    None => continue,
                 };
 
                 let name = full.id_string().to_string();
@@ -107,63 +113,136 @@ impl IpmiSource {
             dev_path.display()
         );
 
+        if entries.is_empty() {
+            return Self::unavailable();
+        }
+
+        // Do one synchronous poll before spawning the background thread
+        // so that the first main-loop poll has data immediately.
+        let initial = poll_bmc(&mut ipmi, &entries);
+
+        let readings: SharedReadings = Arc::new(RwLock::new(initial));
+        let stop = Arc::new(AtomicBool::new(false));
+
+        // Spawn background poller
+        let bg_readings = readings.clone();
+        let bg_stop = stop.clone();
+        thread::spawn(move || {
+            ipmi_background_loop(ipmi, entries, bg_readings, bg_stop);
+        });
+
         Self {
-            ipmi: Some(ipmi),
-            entries,
+            readings,
+            available: true,
+            _stop: Some(stop),
         }
     }
 
-    pub fn poll(&mut self) -> Vec<(SensorId, SensorReading)> {
-        let ipmi = match self.ipmi.as_mut() {
-            Some(i) => i,
-            None => return Vec::new(),
-        };
-
-        let mut results = Vec::with_capacity(self.entries.len());
-
-        for entry in &self.entries {
-            let raw = match ipmi.send_recv(GetSensorReading::for_sensor_key(&entry.key)) {
-                Ok(v) => v,
-                Err(IpmiError::Failed {
-                    completion_code: CompletionErrorCode::RequestedDatapointNotPresent,
-                    ..
-                }) => continue,
-                Err(_) => continue,
-            };
-
-            let threshold: ThresholdReading = (&raw).into();
-            let raw_byte = match threshold.reading {
-                Some(v) => v,
-                None => continue,
-            };
-
-            // IPMI linearization: y = (m * raw + b * 10^b_exp) * 10^result_exp
-            let value = convert_reading(
-                raw_byte,
-                entry.m,
-                entry.b,
-                entry.result_exponent,
-                entry.b_exponent,
-            );
-
-            // Sanity check — skip obviously invalid readings
-            if !value.is_finite() {
-                continue;
-            }
-
-            results.push((
-                entry.id.clone(),
-                SensorReading::new(entry.label.clone(), value, entry.unit, entry.category),
-            ));
+    fn unavailable() -> Self {
+        Self {
+            readings: Arc::new(RwLock::new(Vec::new())),
+            available: false,
+            _stop: None,
         }
-
-        results
     }
 
     pub fn is_available(&self) -> bool {
-        self.ipmi.is_some()
+        self.available
     }
 }
+
+impl crate::sensors::SensorSource for IpmiSource {
+    fn name(&self) -> &str {
+        "ipmi"
+    }
+
+    /// Returns the latest readings from the background thread — never blocks on BMC I/O.
+    fn poll(&mut self) -> Vec<(SensorId, SensorReading)> {
+        self.readings
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+}
+
+impl Drop for IpmiSource {
+    fn drop(&mut self) {
+        if let Some(ref stop) = self._stop {
+            stop.store(true, Ordering::Relaxed);
+        }
+    }
+}
+
+// ── Background thread ───────────────────────────────────────────────────
+
+fn ipmi_background_loop(
+    mut ipmi: Ipmi<IpmiFile>,
+    entries: Vec<SdrEntry>,
+    readings: SharedReadings,
+    stop: Arc<AtomicBool>,
+) {
+    log::debug!("IPMI background poller started ({} sensors)", entries.len());
+
+    while !stop.load(Ordering::Relaxed) {
+        thread::sleep(IPMI_POLL_INTERVAL);
+        if stop.load(Ordering::Relaxed) {
+            break;
+        }
+
+        let new_readings = poll_bmc(&mut ipmi, &entries);
+
+        match readings.write() {
+            Ok(mut state) => *state = new_readings,
+            Err(e) => *e.into_inner() = new_readings,
+        }
+    }
+
+    log::debug!("IPMI background poller stopped");
+}
+
+/// Do one full round of BMC sensor reads. Called by both the initial
+/// synchronous poll and the background thread.
+fn poll_bmc(ipmi: &mut Ipmi<IpmiFile>, entries: &[SdrEntry]) -> Vec<(SensorId, SensorReading)> {
+    let mut results = Vec::with_capacity(entries.len());
+
+    for entry in entries {
+        let raw = match ipmi.send_recv(GetSensorReading::for_sensor_key(&entry.key)) {
+            Ok(v) => v,
+            Err(IpmiError::Failed {
+                completion_code: CompletionErrorCode::RequestedDatapointNotPresent,
+                ..
+            }) => continue,
+            Err(_) => continue,
+        };
+
+        let threshold: ThresholdReading = (&raw).into();
+        let raw_byte = match threshold.reading {
+            Some(v) => v,
+            None => continue,
+        };
+
+        let value = convert_reading(
+            raw_byte,
+            entry.m,
+            entry.b,
+            entry.result_exponent,
+            entry.b_exponent,
+        );
+
+        if !value.is_finite() {
+            continue;
+        }
+
+        results.push((
+            entry.id.clone(),
+            SensorReading::new(entry.label.clone(), value, entry.unit, entry.category),
+        ));
+    }
+
+    results
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────
 
 /// IPMI sensor value linearization formula.
 /// y = (m * raw + b * 10^b_exp) * 10^result_exp
@@ -182,7 +261,6 @@ fn find_ipmi_device() -> Option<std::path::PathBuf> {
             return Some(path);
         }
     }
-    // Also check /dev/ipmi/0 (alternate layout)
     let alt = Path::new("/dev/ipmi/0");
     if alt.exists() {
         return Some(alt.to_path_buf());
@@ -212,18 +290,8 @@ fn refine_unit(ipmi_unit: &Unit) -> Option<SensorUnit> {
         Unit::Amp => Some(SensorUnit::Amps),
         Unit::Watt => Some(SensorUnit::Watts),
         Unit::RevolutionsPerMinute => Some(SensorUnit::Rpm),
-        Unit::Hertz => Some(SensorUnit::Mhz), // approximate
+        Unit::Hertz => Some(SensorUnit::Mhz),
         _ => None,
-    }
-}
-
-impl crate::sensors::SensorSource for IpmiSource {
-    fn name(&self) -> &str {
-        "ipmi"
-    }
-
-    fn poll(&mut self) -> Vec<(SensorId, SensorReading)> {
-        IpmiSource::poll(self)
     }
 }
 
@@ -233,31 +301,26 @@ mod tests {
 
     #[test]
     fn convert_simple() {
-        // m=1, b=0, exponents=0 → raw value passes through
         assert!((convert_reading(25, 1, 0, 0, 0) - 25.0).abs() < 0.001);
     }
 
     #[test]
     fn convert_with_multiplier() {
-        // m=2, b=0, result_exp=0 → value = 2 * raw
         assert!((convert_reading(50, 2, 0, 0, 0) - 100.0).abs() < 0.001);
     }
 
     #[test]
     fn convert_with_b_offset() {
-        // m=1, b=10, b_exp=0, result_exp=0 → value = raw + 10
         assert!((convert_reading(25, 1, 10, 0, 0) - 35.0).abs() < 0.001);
     }
 
     #[test]
     fn convert_with_exponents() {
-        // m=1, b=0, result_exp=-2 → value = raw * 0.01
         assert!((convert_reading(100, 1, 0, -2, 0) - 1.0).abs() < 0.001);
     }
 
     #[test]
     fn convert_with_b_exponent() {
-        // m=1, b=5, b_exp=1, result_exp=0 → value = raw + 5*10 = raw + 50
         assert!((convert_reading(10, 1, 5, 0, 1) - 60.0).abs() < 0.001);
     }
 
@@ -291,7 +354,6 @@ mod tests {
 
     #[test]
     fn find_device_path() {
-        // Just verify the function doesn't panic
         let _ = find_ipmi_device();
     }
 }

@@ -1,25 +1,17 @@
-mod cli;
-mod collectors;
-mod config;
-mod db;
-mod error;
-mod model;
-mod output;
-mod parsers;
-mod platform;
-mod sensors;
-
 use chrono::Utc;
-use clap::Parser;
+use clap::{CommandFactory, FromArgMatches};
 
-use cli::{Cli, Commands, OutputFormat};
-use model::system::SystemInfo;
+use sinfo::cli::{Cli, Commands, OutputFormat};
+use sinfo::model::system::SystemInfo;
+use sinfo::{collectors, config, db, output, platform, sensors};
 
 fn main() {
     env_logger::init();
 
-    let cli = Cli::parse();
+    let matches = Cli::command().get_matches();
+    let mut cli = Cli::from_arg_matches(&matches).expect("CLI parse error");
     let config = config::SinfoConfig::load();
+    cli.apply_config(&config, &matches);
 
     // Build sensor label overrides from board name + config file
     let board_name = db::sensor_labels::read_board_name();
@@ -100,8 +92,11 @@ fn run_monitor(cli: &Cli, label_overrides: std::collections::HashMap<String, Str
         // Give poller a moment to collect initial data
         std::thread::sleep(std::time::Duration::from_millis(300));
 
+        // Shared stop flag for background threads
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+
         // Start CSV logger thread if --log was specified
-        let _csv_handle = start_csv_logger(cli, &state);
+        let csv_handle = start_csv_logger(cli, &state, &stop);
 
         // Parse alert rules from CLI
         let alert_rules: Vec<_> = cli
@@ -118,6 +113,12 @@ fn run_monitor(cli: &Cli, label_overrides: std::collections::HashMap<String, Str
 
         if let Err(e) = output::tui::run(state, poll_stats, cli.interval, alert_rules) {
             eprintln!("TUI error: {e}");
+        }
+
+        // Signal background threads to stop and wait for CSV flush
+        stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        if let Some(h) = csv_handle {
+            let _ = h.join();
         }
     }
 
@@ -242,6 +243,7 @@ fn read_os_name() -> Option<String> {
 fn start_csv_logger(
     cli: &Cli,
     state: &sensors::poller::SensorState,
+    stop: &std::sync::Arc<std::sync::atomic::AtomicBool>,
 ) -> Option<std::thread::JoinHandle<()>> {
     let path = cli.log.as_ref()?;
     let mut logger = match output::csv::CsvLogger::new(path) {
@@ -253,12 +255,18 @@ fn start_csv_logger(
     };
 
     let state = state.clone();
+    let stop = stop.clone();
     let interval = std::time::Duration::from_millis(cli.interval);
-    let handle = std::thread::spawn(move || loop {
-        std::thread::sleep(interval);
-        if let Err(e) = logger.write_row(&state) {
-            log::warn!("CSV write error: {e}");
-            break;
+    let handle = std::thread::spawn(move || {
+        while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+            std::thread::sleep(interval);
+            if stop.load(std::sync::atomic::Ordering::Relaxed) {
+                break;
+            }
+            if let Err(e) = logger.write_row(&state) {
+                log::warn!("CSV write error: {e}");
+                break;
+            }
         }
     });
     Some(handle)
@@ -268,6 +276,7 @@ fn start_csv_logger(
 fn start_csv_logger(
     _cli: &Cli,
     _state: &sensors::poller::SensorState,
+    _stop: &std::sync::Arc<std::sync::atomic::AtomicBool>,
 ) -> Option<std::thread::JoinHandle<()>> {
     if _cli.log.is_some() {
         eprintln!("CSV logging not available — compile with the 'csv' feature");

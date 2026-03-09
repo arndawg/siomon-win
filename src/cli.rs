@@ -1,5 +1,7 @@
 use clap::{Parser, Subcommand, ValueEnum};
 
+use crate::config::SinfoConfig;
+
 #[derive(Parser, Debug)]
 #[command(
     name = "sinfo",
@@ -89,4 +91,38 @@ pub enum ColorMode {
     Auto,
     Always,
     Never,
+}
+
+impl Cli {
+    /// Apply config file values for any CLI argument that wasn't explicitly set.
+    pub fn apply_config(&mut self, config: &SinfoConfig, matches: &clap::ArgMatches) {
+        use clap::parser::ValueSource;
+
+        if matches.value_source("format") == Some(ValueSource::DefaultValue) {
+            match config.general.format.as_str() {
+                "json" => self.format = OutputFormat::Json,
+                "xml" => self.format = OutputFormat::Xml,
+                "html" => self.format = OutputFormat::Html,
+                "text" => self.format = OutputFormat::Text,
+                other => log::warn!("Unknown format in config: {other:?}"),
+            }
+        }
+
+        if matches.value_source("color") == Some(ValueSource::DefaultValue) {
+            match config.general.color.as_str() {
+                "auto" => self.color = ColorMode::Auto,
+                "always" => self.color = ColorMode::Always,
+                "never" => self.color = ColorMode::Never,
+                other => log::warn!("Unknown color mode in config: {other:?}"),
+            }
+        }
+
+        if matches.value_source("interval") == Some(ValueSource::DefaultValue) {
+            self.interval = config.general.poll_interval_ms;
+        }
+
+        if matches.value_source("no_nvidia") == Some(ValueSource::DefaultValue) {
+            self.no_nvidia = config.general.no_nvidia;
+        }
+    }
 }

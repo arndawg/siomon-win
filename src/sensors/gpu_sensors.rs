@@ -5,6 +5,9 @@ use std::path::PathBuf;
 pub struct GpuSensorSource {
     nvidia: NvidiaState,
     amd_gpus: Vec<AmdGpu>,
+    /// Consecutive poll cycles where NVIDIA produced zero readings.
+    #[cfg(feature = "nvidia")]
+    nvidia_fail_count: u32,
 }
 
 enum NvidiaState {
@@ -31,6 +34,10 @@ struct AmdGpu {
     vram_total: Option<u64>,
 }
 
+/// Number of consecutive zero-reading polls before disabling NVIDIA.
+#[cfg(feature = "nvidia")]
+const NVIDIA_MAX_FAILURES: u32 = 3;
+
 impl GpuSensorSource {
     pub fn discover(no_nvidia: bool) -> Self {
         let nvidia = if no_nvidia {
@@ -40,15 +47,35 @@ impl GpuSensorSource {
         };
         let amd_gpus = discover_amd();
 
-        Self { nvidia, amd_gpus }
+        Self {
+            nvidia,
+            amd_gpus,
+            #[cfg(feature = "nvidia")]
+            nvidia_fail_count: 0,
+        }
     }
 
-    pub fn poll(&self) -> Vec<(SensorId, SensorReading)> {
+    pub fn poll(&mut self) -> Vec<(SensorId, SensorReading)> {
         let mut readings = Vec::new();
 
         #[cfg(feature = "nvidia")]
         if let NvidiaState::Active { ref lib, ref gpus } = self.nvidia {
+            let before = readings.len();
             poll_nvidia(lib, gpus, &mut readings);
+            let produced = readings.len() - before;
+
+            if produced == 0 && !gpus.is_empty() {
+                self.nvidia_fail_count += 1;
+                if self.nvidia_fail_count >= NVIDIA_MAX_FAILURES {
+                    log::warn!(
+                        "NVIDIA driver appears unavailable ({} consecutive empty polls), disabling NVML",
+                        self.nvidia_fail_count
+                    );
+                    self.nvidia = NvidiaState::Unavailable;
+                }
+            } else {
+                self.nvidia_fail_count = 0;
+            }
         }
 
         poll_amd(&self.amd_gpus, &mut readings);
@@ -63,7 +90,7 @@ impl crate::sensors::SensorSource for GpuSensorSource {
     }
 
     fn poll(&mut self) -> Vec<(SensorId, SensorReading)> {
-        GpuSensorSource::poll(self)
+        self.poll()
     }
 }
 

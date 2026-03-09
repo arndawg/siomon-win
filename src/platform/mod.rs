@@ -4,4 +4,6 @@ pub mod nvme_ioctl;
 pub mod nvml;
 pub mod port_io;
 pub mod procfs;
+pub mod sata_ioctl;
+pub mod sinfo_io;
 pub mod sysfs;
