@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct SinfoConfig {
+pub struct SiomonConfig {
     #[serde(default)]
     pub general: GeneralConfig,
     /// Sensor label overrides: "hwmon/nct6798/in0" -> "Vcore"
@@ -50,7 +50,7 @@ impl Default for GeneralConfig {
     }
 }
 
-impl SinfoConfig {
+impl SiomonConfig {
     /// Load the configuration from disk. Returns defaults if the file is missing
     /// or cannot be parsed.
     pub fn load() -> Self {
@@ -77,19 +77,19 @@ impl SinfoConfig {
 
 /// Return the path to the configuration file.
 ///
-/// Uses `$XDG_CONFIG_HOME/sinfo/config.toml` if `XDG_CONFIG_HOME` is set,
-/// otherwise falls back to `$HOME/.config/sinfo/config.toml`.
+/// Uses `$XDG_CONFIG_HOME/siomon/config.toml` if `XDG_CONFIG_HOME` is set,
+/// otherwise falls back to `$HOME/.config/siomon/config.toml`.
 pub fn config_path() -> PathBuf {
     if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
-        PathBuf::from(xdg).join("sinfo").join("config.toml")
+        PathBuf::from(xdg).join("siomon").join("config.toml")
     } else if let Ok(home) = std::env::var("HOME") {
         PathBuf::from(home)
             .join(".config")
-            .join("sinfo")
+            .join("siomon")
             .join("config.toml")
     } else {
         // Last resort: relative path (unlikely to be useful, but avoids a panic)
-        PathBuf::from(".config").join("sinfo").join("config.toml")
+        PathBuf::from(".config").join("siomon").join("config.toml")
     }
 }
 
@@ -99,7 +99,7 @@ mod tests {
 
     #[test]
     fn test_default_config() {
-        let cfg = SinfoConfig::default();
+        let cfg = SiomonConfig::default();
         assert_eq!(cfg.general.format, "text");
         assert_eq!(cfg.general.poll_interval_ms, 1000);
         assert!(cfg.general.physical_net_only);
@@ -111,7 +111,7 @@ mod tests {
     #[test]
     fn test_parse_minimal_toml() {
         let toml_str = "";
-        let cfg: SinfoConfig = toml::from_str(toml_str).unwrap();
+        let cfg: SiomonConfig = toml::from_str(toml_str).unwrap();
         assert_eq!(cfg.general.format, "text");
         assert!(cfg.sensor_labels.is_empty());
     }
@@ -130,7 +130,7 @@ color = "never"
 "hwmon/nct6798/in0" = "Vcore"
 "hwmon/nct6798/fan1" = "CPU Fan"
 "#;
-        let cfg: SinfoConfig = toml::from_str(toml_str).unwrap();
+        let cfg: SiomonConfig = toml::from_str(toml_str).unwrap();
         assert_eq!(cfg.general.format, "json");
         assert_eq!(cfg.general.poll_interval_ms, 500);
         assert!(!cfg.general.physical_net_only);
@@ -147,7 +147,7 @@ color = "never"
     fn test_config_path_uses_xdg() {
         // Just verify the function doesn't panic
         let path = config_path();
-        assert!(path.to_str().unwrap().contains("sinfo"));
+        assert!(path.to_str().unwrap().contains("siomon"));
         assert!(path.to_str().unwrap().ends_with("config.toml"));
     }
 }

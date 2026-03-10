@@ -59,8 +59,8 @@ jobs:
       - run: cargo build --release --all-features
       - uses: actions/upload-artifact@v4
         with:
-          name: sinfo-linux-x86_64
-          path: target/release/sinfo
+          name: sio-linux-x86_64
+          path: target/release/sio
 
   build-minimal:
     name: Build Minimal (no default features)

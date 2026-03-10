@@ -1,10 +1,10 @@
 use clap::{Parser, Subcommand, ValueEnum};
 
-use crate::config::SinfoConfig;
+use crate::config::SiomonConfig;
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "sinfo",
+    name = "sio",
     about = "Linux hardware information and sensor monitoring",
     version,
     author
@@ -95,7 +95,7 @@ pub enum ColorMode {
 
 impl Cli {
     /// Apply config file values for any CLI argument that wasn't explicitly set.
-    pub fn apply_config(&mut self, config: &SinfoConfig, matches: &clap::ArgMatches) {
+    pub fn apply_config(&mut self, config: &SiomonConfig, matches: &clap::ArgMatches) {
         use clap::parser::ValueSource;
 
         if matches.value_source("format") == Some(ValueSource::DefaultValue) {

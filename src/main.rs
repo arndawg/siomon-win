@@ -1,16 +1,16 @@
 use chrono::Utc;
 use clap::{CommandFactory, FromArgMatches};
 
-use sinfo::cli::{Cli, Commands, OutputFormat};
-use sinfo::model::system::SystemInfo;
-use sinfo::{collectors, config, db, output, platform, sensors};
+use siomon::cli::{Cli, Commands, OutputFormat};
+use siomon::model::system::SystemInfo;
+use siomon::{collectors, config, db, output, platform, sensors};
 
 fn main() {
     env_logger::init();
 
     let matches = Cli::command().get_matches();
     let mut cli = Cli::from_arg_matches(&matches).expect("CLI parse error");
-    let config = config::SinfoConfig::load();
+    let config = config::SiomonConfig::load();
     cli.apply_config(&config, &matches);
 
     // Build sensor label overrides from board name + config file
@@ -237,7 +237,7 @@ fn collect_all(cli: &Cli) -> SystemInfo {
 
     SystemInfo {
         timestamp: Utc::now(),
-        sinfo_version: env!("CARGO_PKG_VERSION").to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
         hostname,
         kernel_version,
         os_name: read_os_name(),

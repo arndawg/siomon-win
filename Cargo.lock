@@ -1176,8 +1176,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "sinfo"
-version = "0.0.1"
+name = "siomon"
+version = "0.1.0"
 dependencies = [
  "chrono",
  "clap",

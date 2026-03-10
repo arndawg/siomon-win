@@ -1,4 +1,4 @@
-use super::{BoardTemplate, ASUS_AM5_NCT6798_LABELS};
+use super::{ASUS_AM5_NCT6798_LABELS, BoardTemplate};
 
 pub static BOARD: BoardTemplate = BoardTemplate {
     match_substrings: &["prime"],

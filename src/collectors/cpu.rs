@@ -95,7 +95,6 @@ pub fn collect() -> Result<Vec<CpuInfo>> {
 // CPUID data gathering (x86/x86_64 only)
 // ---------------------------------------------------------------------------
 
-#[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
 struct CpuidData {
     vendor: CpuVendor,
     brand: Option<String>,
@@ -162,7 +161,7 @@ fn gather_cpuid() -> Option<CpuidData> {
 }
 
 #[cfg(not(any(target_arch = "x86_64", target_arch = "x86")))]
-fn gather_cpuid() -> Option<()> {
+fn gather_cpuid() -> Option<CpuidData> {
     None
 }
 

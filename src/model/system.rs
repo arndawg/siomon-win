@@ -16,7 +16,7 @@ use super::usb::UsbDevice;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemInfo {
     pub timestamp: DateTime<Utc>,
-    pub sinfo_version: String,
+    pub version: String,
     pub hostname: String,
     pub kernel_version: String,
     pub os_name: Option<String>,

@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum SinfoError {
+pub enum SiomonError {
     #[error(transparent)]
     Io(#[from] std::io::Error),
 
@@ -18,4 +18,4 @@ pub enum NvmlError {
     ApiError(u32),
 }
 
-pub type Result<T> = std::result::Result<T, SinfoError>;
+pub type Result<T> = std::result::Result<T, SiomonError>;

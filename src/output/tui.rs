@@ -6,14 +6,14 @@ use std::time::{Duration, Instant};
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, MouseEventKind};
 use crossterm::execute;
 use crossterm::terminal::{
-    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
+use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::symbols;
 use ratatui::widgets::{Axis, Block, Borders, Cell, Chart, Dataset, Paragraph, Row, Table};
-use ratatui::Terminal;
 
 use crate::model::sensor::{self, SensorCategory, SensorId, SensorReading, SensorUnit};
 use crate::sensors::poller::PollStatsState;
@@ -841,7 +841,7 @@ fn draw(
             " | \u{26a0} run as root for SMART, DMI serials, MSR"
         };
         let title = format!(
-            " sinfo \u{2014} Sensor Monitor | {} sensors | {} groups ({} collapsed) | {}{}",
+            " sio \u{2014} Sensor Monitor | {} sensors | {} groups ({} collapsed) | {}{}",
             sensor_count, total_groups, collapsed_count, elapsed_str, priv_hint
         );
         let header_block = Paragraph::new(title)

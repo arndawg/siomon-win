@@ -1,12 +1,17 @@
 [package]
-name = "sinfo"
-version = "0.0.1"
+name = "siomon"
+version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 description = "Linux hardware information and sensor monitoring tool"
 license = "MIT"
 keywords = ["hardware", "sensors", "hwmon", "system-info", "monitoring"]
 categories = ["command-line-utilities", "hardware-support"]
+repository = "https://github.com/level1techs/siomon"
+
+[[bin]]
+name = "sio"
+path = "src/main.rs"
 
 [features]
 default = ["tui", "nvidia", "json", "csv"]

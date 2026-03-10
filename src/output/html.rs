@@ -8,7 +8,7 @@ pub fn print(info: &SystemInfo) {
     println!("<head>");
     println!("<meta charset=\"UTF-8\">");
     println!("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">");
-    println!("<title>sinfo Report — {}</title>", info.hostname);
+    println!("<title>sio Report — {}</title>", info.hostname);
     println!("<style>");
     println!("{}", CSS);
     println!("</style>");
@@ -17,7 +17,7 @@ pub fn print(info: &SystemInfo) {
     println!("<div class=\"container\">");
 
     // Header
-    println!("<h1>sinfo System Report</h1>");
+    println!("<h1>sio System Report</h1>");
     println!("<div class=\"meta\">");
     println!("<span>Host: <strong>{}</strong></span>", info.hostname);
     println!("<span>Kernel: {}</span>", info.kernel_version);
@@ -28,7 +28,7 @@ pub fn print(info: &SystemInfo) {
         "<span>Generated: {}</span>",
         info.timestamp.format("%Y-%m-%d %H:%M:%S UTC")
     );
-    println!("<span>sinfo v{}</span>", info.sinfo_version);
+    println!("<span>sio v{}</span>", info.version);
     println!("</div>");
 
     // CPU

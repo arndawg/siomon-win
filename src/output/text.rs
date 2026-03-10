@@ -1,7 +1,7 @@
 use crate::model::system::SystemInfo;
 
 pub fn print_summary(info: &SystemInfo) {
-    println!("  sinfo - System Information");
+    println!("  sio - System Information");
     println!("  ========================");
     if unsafe { libc::geteuid() } != 0 {
         println!("  (run as root for SMART data, DMI serials, and MSR access)");

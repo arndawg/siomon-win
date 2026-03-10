@@ -1,4 +1,4 @@
-# sinfo
+# siomon
 
 A comprehensive Linux hardware information and real-time sensor monitoring tool. Single static binary, no runtime dependencies.
 
@@ -35,60 +35,60 @@ A comprehensive Linux hardware information and real-time sensor monitoring tool.
 - JSON (`-f json`)
 - XML (`-f xml`)
 - HTML report (`-f html`) -- self-contained dark-themed report with color-coded vulnerability status
-- Per-section views (`sinfo cpu`, `sinfo gpu`, `sinfo storage`, `sinfo pcie`, etc.)
-- Sensor snapshot (`sinfo sensors`)
+- Per-section views (`sio cpu`, `sio gpu`, `sio storage`, `sio pcie`, etc.)
+- Sensor snapshot (`sio sensors`)
 
 ### Configuration
-- Config file at `~/.config/sinfo/config.toml` for persistent preferences
+- Config file at `~/.config/siomon/config.toml` for persistent preferences
 - Sensor label overrides (built-in board mappings + user custom labels)
 
 ## Quick Start
 
 ```bash
 # System summary
-sinfo
+sio
 
 # Specific sections
-sinfo cpu
-sinfo gpu
-sinfo memory
-sinfo storage
-sinfo network
-sinfo pci
-sinfo pcie           # PCIe link details
-sinfo audio
-sinfo usb
-sinfo battery
-sinfo board
+sio cpu
+sio gpu
+sio memory
+sio storage
+sio network
+sio pci
+sio pcie           # PCIe link details
+sio audio
+sio usb
+sio battery
+sio board
 
 # JSON output (pipe to jq, store, etc.)
-sinfo -f json
-sinfo cpu -f json
+sio -f json
+sio cpu -f json
 
 # HTML report
-sinfo -f html > report.html
+sio -f html > report.html
 
 # XML output
-sinfo -f xml > report.xml
+sio -f xml > report.xml
 
 # One-shot sensor snapshot
-sinfo sensors
-sinfo sensors -f json
+sio sensors
+sio sensors -f json
 
 # Interactive TUI sensor monitor
-sinfo -m
+sio -m
 
 # TUI with custom polling interval (ms)
-sinfo -m --interval 500
+sio -m --interval 500
 
 # TUI with CSV logging
-sinfo -m --log sensors.csv
+sio -m --log sensors.csv
 
 # Sensor alerts
-sinfo -m --alert "hwmon/nct6798/temp1 > 80" --alert "hwmon/nct6798/fan1 < 100 @60s"
+sio -m --alert "hwmon/nct6798/temp1 > 80" --alert "hwmon/nct6798/fan1 < 100 @60s"
 
 # Full access (SMART, DMI serials, MSR)
-sudo sinfo
+sudo sio
 ```
 
 ## TUI Keybindings
@@ -118,7 +118,7 @@ sudo sinfo
 cargo build --release
 ```
 
-The binary is at `./target/release/sinfo` (~5.3 MB with all features, statically linked PCI ID database).
+The binary is at `./target/release/sio` (~5.3 MB with all features, statically linked PCI ID database).
 
 ### Feature Flags
 
@@ -151,7 +151,7 @@ cargo build --release --target aarch64-unknown-linux-gnu
 
 ## Runtime Dependencies
 
-sinfo has **zero mandatory runtime dependencies**. Everything is read from kernel interfaces.
+sio has **zero mandatory runtime dependencies**. Everything is read from kernel interfaces.
 
 ### Optional Runtime
 
@@ -165,7 +165,7 @@ sinfo has **zero mandatory runtime dependencies**. Everything is read from kerne
 
 ### Privilege Model
 
-sinfo runs without root and gracefully degrades:
+sio runs without root and gracefully degrades:
 
 | Access Level | Available |
 |-------------|-----------|
@@ -176,7 +176,7 @@ Fields requiring elevation show `[requires root]` or are omitted.
 
 ## Data Sources
 
-sinfo reads directly from Linux kernel interfaces -- no lm-sensors or other userspace daemons required.
+sio reads directly from Linux kernel interfaces -- no lm-sensors or other userspace daemons required.
 
 | Data | Source |
 |------|--------|
@@ -206,7 +206,7 @@ sinfo reads directly from Linux kernel interfaces -- no lm-sensors or other user
 src/
   main.rs              -- CLI dispatch and orchestration
   cli.rs               -- clap argument definitions
-  error.rs             -- Error types (SinfoError, SysfsError, MsrError, NvmlError)
+  error.rs             -- Error types (SiomonError, SysfsError, MsrError, NvmlError)
 
   model/               -- Data structures (serde Serialize/Deserialize)
     system.rs          -- SystemInfo top-level container
@@ -222,7 +222,7 @@ src/
     battery.rs         -- BatteryInfo
     sensor.rs          -- SensorId, SensorReading, SensorUnit, SensorCategory
 
-  config.rs            -- Config file loading (~/.config/sinfo/config.toml)
+  config.rs            -- Config file loading (~/.config/siomon/config.toml)
 
   collectors/          -- One-shot hardware data collection
     cpu.rs             -- CPUID (x86) + ARM MIDR_EL1 + /proc/cpuinfo + sysfs
@@ -291,6 +291,12 @@ src/
 | `thiserror` | 2 | Error derive macros |
 | `glob` | 0.3 | Sysfs path enumeration |
 | `log` + `env_logger` | 0.4 / 0.11 | Debug logging (`RUST_LOG=debug`) |
+
+## Install
+
+```bash
+cargo install siomon
+```
 
 ## License
 
