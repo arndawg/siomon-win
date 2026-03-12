@@ -68,10 +68,11 @@ jobs:
             exit 1
           fi
           # Step 2: Exchange JWT for a short-lived crates.io publish token
-          exchange_resp=$(curl -sS -X POST https://crates.io/api/v1/trusted_publishing/tokens \
+          exchange_resp=$(jq -n --arg jwt "$JWT" '{"jwt": $jwt}' | \
+            curl -sS -X POST https://crates.io/api/v1/trusted_publishing/tokens \
             -H "Content-Type: application/json" \
             -H "User-Agent: siomon CI (https://github.com/level1techs/siomon)" \
-            -d "{\"jwt\": \"$JWT\"}")
+            -d @-)
           CARGO_REGISTRY_TOKEN=$(echo "$exchange_resp" | jq -r '.token')
           if [ "$CARGO_REGISTRY_TOKEN" = "null" ] || [ -z "$CARGO_REGISTRY_TOKEN" ]; then
             echo "::error::Failed to exchange OIDC token with crates.io"
