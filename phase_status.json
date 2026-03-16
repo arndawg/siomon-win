@@ -8,69 +8,54 @@
       "status": "completed",
       "started": "2026-03-16",
       "completed": "2026-03-16",
-      "plan": "PHASE_ALPHA.md",
-      "exit_report": "PHASE_ALPHA_EXIT_REPORT.md",
-      "summary": "Initial Windows port: platform gating, sysinfo collectors, NVML GPU sensors, per-core CPU frequency, NVMe/SATA SMART, PCI/USB/audio enumeration, TUI dashboard with 150 sensors",
-      "commits": [
-        "55564ff", "7c11c14", "ac67937", "2837f42",
-        "78d2aa6", "683d35e", "b38a9dc", "33138b6"
-      ],
-      "stats": { "files_changed": 29, "insertions": 3436, "deletions": 158 },
-      "gaps_remaining": 14
+      "plan": "archive/PHASE_ALPHA.md",
+      "exit_report": "archive/PHASE_ALPHA_EXIT_REPORT.md"
     },
     "BETA": {
       "title": "User-Mode Parity (no driver required)",
       "status": "completed",
       "started": "2026-03-16",
       "completed": "2026-03-16",
-      "plan": "PHASE_BETA.md",
-      "exit_report": "PHASE_BETA_EXIT_REPORT.md",
-      "summary": "Closed 8 gaps with user-mode Windows APIs: battery, network details, motherboard fields, USB speed/class, audio codec, display outputs, WHEA errors, IPMI",
-      "commits": ["bfcad5a", "f89cf60", "4830f21"],
-      "stats": { "files_changed": 11, "insertions": 1706, "deletions": 63 },
-      "work_items": {
-        "B1": { "title": "Battery information", "gap": 4, "status": "completed" },
-        "B2": { "title": "Network interface details (MAC, IP, speed)", "gap": 5, "status": "completed" },
-        "B3": { "title": "Motherboard detail fields", "gap": 11, "status": "completed" },
-        "B4": { "title": "USB device details (speed, class)", "gap": 12, "status": "completed" },
-        "B5": { "title": "Audio codec name", "gap": 13, "status": "completed" },
-        "B6": { "title": "Display output enumeration", "gap": 6, "status": "completed" },
-        "B7": { "title": "WHEA error monitoring (MCE/EDAC/AER)", "gap": 8, "status": "completed" },
-        "B8": { "title": "IPMI BMC sensors", "gap": 9, "status": "completed" }
-      },
-      "gaps_remaining": 7
+      "plan": "archive/PHASE_BETA.md",
+      "exit_report": "archive/PHASE_BETA_EXIT_REPORT.md"
     },
     "GAMMA": {
       "title": "Driver-Gated Hardware Sensors",
-      "status": "planned",
+      "status": "completed",
+      "started": "2026-03-16",
+      "completed": "2026-03-16",
       "plan": "PHASE_GAMMA.md",
-      "exit_report": null,
-      "summary": "WinRing0 integration enabling SuperIO temps/fans/voltages, RAPL power metering, AMD HSMP telemetry, I2C/PMBus VRM monitoring, PCIe link info, AMD ADL GPU sensors, DDR5 DIMM temperatures",
+      "exit_report": "PHASE_GAMMA_EXIT_REPORT.md",
+      "summary": "WinRing0 integration (port I/O, MSR, PCI config), SuperIO un-gating (NCT67xx/IT87xx), RAPL power via MSR, AMD HSMP via SMN mailbox, PCIe link via config space, AMD ADL GPU sensors, SMBus VRM + DDR5 DIMM temps. All graceful fallback when driver absent.",
+      "commits": ["552244a", "3728022", "2ae0deb"],
+      "stats": { "files_changed": 19, "insertions": 2397, "deletions": 25 },
       "work_items": {
-        "G1": { "title": "WinRing0 port I/O + MSR + PCI config integration", "gap": [1, 14], "effort": "medium", "status": "pending" },
-        "G2": { "title": "SuperIO temps/fans/voltages (NCT67xx, IT87xx)", "gap": 1, "effort": "medium", "status": "pending", "depends_on": "G1" },
-        "G3": { "title": "RAPL power metering via MSR", "gap": 2, "effort": "low-medium", "status": "pending", "depends_on": "G1" },
-        "G4": { "title": "AMD HSMP telemetry via SMN mailbox", "gap": 3, "effort": "high", "status": "pending", "depends_on": "G1" },
-        "G5": { "title": "I2C/PMBus VRM monitoring via SMBus", "gap": 10, "effort": "high", "status": "pending", "depends_on": "G1" },
-        "G6": { "title": "PCIe link speed/width", "gap": 7, "effort": "medium", "status": "pending", "depends_on": "G1" },
-        "G7": { "title": "AMD ADL GPU sensors", "gap": 6, "effort": "medium", "status": "pending" },
-        "G8": { "title": "DDR5 DIMM temperatures (SPD5118)", "gap": 10, "effort": "high", "status": "pending", "depends_on": "G5" }
+        "G1": { "title": "WinRing0 port I/O + MSR + PCI config", "gap": [1, 14], "status": "completed" },
+        "G2": { "title": "SuperIO temps/fans/voltages (NCT67xx, IT87xx)", "gap": 1, "status": "completed" },
+        "G3": { "title": "RAPL power metering via MSR", "gap": 2, "status": "completed" },
+        "G4": { "title": "AMD HSMP telemetry via SMN mailbox", "gap": 3, "status": "completed" },
+        "G5": { "title": "I2C/PMBus VRM monitoring via SMBus", "gap": 10, "status": "completed" },
+        "G6": { "title": "PCIe link speed/width", "gap": 7, "status": "completed" },
+        "G7": { "title": "AMD ADL GPU sensors", "gap": 6, "status": "completed" },
+        "G8": { "title": "DDR5 DIMM temperatures (SPD5118)", "gap": 10, "status": "completed" }
       },
-      "gaps_remaining": 7
+      "gaps_remaining": 0,
+      "note": "All 14 original gaps from Alpha addressed. WinRing0-dependent features require driver installation for live validation."
     },
     "DELTA": {
       "title": "Polish and Upstream Preparation",
       "status": "future",
       "plan": null,
       "exit_report": null,
-      "summary": "SMBIOS DIMM enrichment, CPU microcode, network driver names, ACPI thermal zones, upstream PR rebase/squash/CI",
+      "summary": "SMBIOS DIMM enrichment, CPU microcode, network driver names, ACPI thermal zones, upstream PR rebase/squash/CI, WinRing0 live hardware validation",
       "work_items": {
         "D1": { "title": "SMBIOS table parsing via GetSystemFirmwareTable", "effort": "medium", "status": "pending" },
         "D2": { "title": "Memory DIMM details from SMBIOS Type 17", "effort": "medium", "status": "pending", "depends_on": "D1" },
         "D3": { "title": "CPU microcode version from CPUID/registry", "effort": "low", "status": "pending" },
         "D4": { "title": "Network driver name from WMI", "effort": "low", "status": "pending" },
         "D5": { "title": "ACPI thermal zones as supplementary sensor source", "effort": "medium", "status": "pending" },
-        "D6": { "title": "Upstream PR preparation (rebase, squash, CI)", "effort": "medium", "status": "pending" }
+        "D6": { "title": "Upstream PR preparation (rebase, squash, CI)", "effort": "medium", "status": "pending" },
+        "D7": { "title": "WinRing0 live hardware validation on multiple platforms", "effort": "high", "status": "pending" }
       }
     }
   }
