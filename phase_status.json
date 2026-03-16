@@ -24,38 +24,35 @@
     "DELTA": {
       "title": "Polish and Upstream Preparation",
       "status": "completed",
-      "started": "2026-03-16",
-      "completed": "2026-03-16",
-      "plan": "PHASE_DELTA.md",
-      "exit_report": "PHASE_DELTA_EXIT_REPORT.md",
-      "summary": "SMBIOS parsing via GetSystemFirmwareTable, DIMM details (4x Kingston DDR4), CPU microcode (0x7D103008), BIOS date formatting, chipset from PCI 00:00.0, network type/driver fix, ACPI thermal sensor, zero-warning build",
-      "commits": ["63c803a", "ccbb408", "9d74ef4"],
-      "stats": { "files_changed": 11, "insertions": 655, "deletions": 26 },
-      "work_items": {
-        "D1": { "title": "SMBIOS table parsing via GetSystemFirmwareTable", "status": "completed" },
-        "D2": { "title": "Memory DIMM details from SMBIOS Type 17", "status": "completed" },
-        "D3": { "title": "CPU microcode version from registry", "status": "completed" },
-        "D4": { "title": "Network interface type and driver name", "status": "completed" },
-        "D5": { "title": "ACPI thermal zones sensor", "status": "completed" },
-        "D6": { "title": "BIOS date formatting", "status": "completed" },
-        "D7": { "title": "Motherboard chipset from PCI 00:00.0", "status": "completed" },
-        "D8": { "title": "Zero-warning Windows build", "status": "completed" },
-        "D9": { "title": "WinRing0 live hardware validation", "status": "deferred", "note": "Requires WinRing0 installation on multiple test platforms" }
-      }
+      "plan": "archive/PHASE_DELTA.md",
+      "exit_report": "archive/PHASE_DELTA_EXIT_REPORT.md"
     },
     "EPSILON": {
-      "title": "Distribution and Upstream Merge",
+      "title": "CI, Release, and winget Distribution",
+      "status": "planned",
+      "plan": "PHASE_EPSILON.md",
+      "exit_report": null,
+      "summary": "Add Windows to GitHub Actions CI, extend release workflow for Windows zip+SHA256, create tagged release, submit winget manifest to microsoft/winget-pkgs, update README",
+      "work_items": {
+        "E1": { "title": "Add Windows check/build/test to CI workflow", "effort": "low", "status": "pending" },
+        "E2": { "title": "Add Windows to release workflow (zip + SHA256)", "effort": "medium", "status": "pending" },
+        "E3": { "title": "Create initial tagged release (v0.1.3-win.1)", "effort": "low", "status": "pending", "depends_on": "E2" },
+        "E4": { "title": "Submit winget manifest to microsoft/winget-pkgs", "effort": "medium", "status": "pending", "depends_on": "E3" },
+        "E5": { "title": "Update README with Windows instructions", "effort": "low", "status": "pending" },
+        "E6": { "title": "Fix Linux CI compatibility", "effort": "low-medium", "status": "pending" }
+      }
+    },
+    "ZETA": {
+      "title": "Upstream Merge and Platform Expansion",
       "status": "future",
       "plan": null,
       "exit_report": null,
-      "summary": "WinRing0 live validation, upstream PR (rebase/squash/CI/README), cross-compile CI, ARM64 Windows, MSI installer/winget, Windows config paths",
+      "summary": "Upstream PR to level1techs/siomon (rebase/squash), ARM64 Windows, WinRing0 live validation, automated winget version bumps",
       "work_items": {
-        "E1": { "title": "WinRing0 live hardware validation on multiple platforms", "effort": "high", "status": "pending" },
-        "E2": { "title": "Upstream PR preparation (rebase, squash, CI, README)", "effort": "medium", "status": "pending" },
-        "E3": { "title": "Cross-compile CI (build Windows from Linux runner)", "effort": "medium", "status": "pending" },
-        "E4": { "title": "ARM64 Windows port (aarch64-pc-windows-msvc)", "effort": "high", "status": "pending" },
-        "E5": { "title": "MSI installer and winget manifest", "effort": "medium", "status": "pending" },
-        "E6": { "title": "Windows-specific config paths (%APPDATA%)", "effort": "low", "status": "pending" }
+        "Z1": { "title": "Upstream PR to level1techs/siomon", "effort": "medium", "status": "pending" },
+        "Z2": { "title": "ARM64 Windows (aarch64-pc-windows-msvc)", "effort": "high", "status": "pending" },
+        "Z3": { "title": "WinRing0 live hardware validation", "effort": "high", "status": "pending" },
+        "Z4": { "title": "Automated winget version bump on release", "effort": "medium", "status": "pending" }
       }
     }
   }
