@@ -114,12 +114,7 @@ fn win_collect_adapters(physical_only: bool) -> Vec<NetworkAdapter> {
                 interface_type,
                 NetworkInterfaceType::Ethernet | NetworkInterfaceType::Wifi
             );
-            if physical_only
-                && matches!(
-                    interface_type,
-                    NetworkInterfaceType::Loopback | NetworkInterfaceType::Tun
-                )
-            {
+            if physical_only && !is_physical {
                 current = adapter.Next;
                 continue;
             }
