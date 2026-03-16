@@ -40,7 +40,7 @@ pub fn is_elevated() -> bool {
     use winapi::um::handleapi::CloseHandle;
     use winapi::um::processthreadsapi::{GetCurrentProcess, OpenProcessToken};
     use winapi::um::securitybaseapi::GetTokenInformation;
-    use winapi::um::winnt::{TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
+    use winapi::um::winnt::{TOKEN_ELEVATION, TOKEN_QUERY, TokenElevation};
 
     unsafe {
         let mut token = ptr::null_mut();

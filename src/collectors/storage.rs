@@ -185,10 +185,7 @@ fn attach_smart_data(devices: &mut [StorageDevice]) {
                 to_wide,
                 IOCTL_DISK_GET_DRIVE_GEOMETRY_EX,
             ) {
-                log::debug!(
-                    "Storage: attached NVMe SMART to {}",
-                    dev.device_name
-                );
+                log::debug!("Storage: attached NVMe SMART to {}", dev.device_name);
                 dev.smart = Some(smart);
                 if dev.interface == StorageInterface::Unknown("unknown".to_string()) {
                     dev.interface = StorageInterface::NVMe;
@@ -217,10 +214,7 @@ fn attach_smart_data(devices: &mut [StorageDevice]) {
                 to_wide,
                 IOCTL_DISK_GET_DRIVE_GEOMETRY_EX,
             ) {
-                log::debug!(
-                    "Storage: attached SATA SMART to {}",
-                    dev.device_name
-                );
+                log::debug!("Storage: attached SATA SMART to {}", dev.device_name);
                 dev.smart = Some(smart);
                 if dev.interface == StorageInterface::Unknown("unknown".to_string()) {
                     dev.interface = StorageInterface::SATA;
@@ -283,7 +277,10 @@ fn attach_smart_data(devices: &mut [StorageDevice]) {
             if dev.capacity_bytes > phys_capacity {
                 log::debug!(
                     "Storage: fallback match — PhysicalDrive{} ({}B) is likely a component of {} ({}B)",
-                    drive_num, phys_capacity, dev.device_name, dev.capacity_bytes
+                    drive_num,
+                    phys_capacity,
+                    dev.device_name,
+                    dev.capacity_bytes
                 );
                 return Some(&mut devices[i]);
             }

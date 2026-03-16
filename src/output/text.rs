@@ -144,13 +144,16 @@ pub fn print_summary(info: &SystemInfo) {
         println!("  ME Firmware:     {me}");
     }
     // Show detected Super I/O chip if running with elevated privileges
-    let can_probe_sio = crate::platform::is_elevated()
-        && {
-            #[cfg(windows)]
-            { crate::platform::port_io_win::PortIo::is_available() }
-            #[cfg(unix)]
-            { true }
-        };
+    let can_probe_sio = crate::platform::is_elevated() && {
+        #[cfg(windows)]
+        {
+            crate::platform::port_io_win::PortIo::is_available()
+        }
+        #[cfg(unix)]
+        {
+            true
+        }
+    };
     if can_probe_sio {
         let chips = crate::sensors::superio::chip_detect::detect_all();
         for chip in &chips {
@@ -732,7 +735,6 @@ fn format_bytes_u128(bytes: u128) -> String {
         format!("{bytes} B")
     }
 }
-
 
 #[cfg(test)]
 mod tests {
