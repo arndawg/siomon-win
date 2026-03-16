@@ -188,8 +188,93 @@ fn win_collect_adapters(physical_only: bool) -> Vec<NetworkAdapter> {
         }
     }
 
+    // Populate driver names from WMI
+    win_populate_driver_names(&mut adapters);
+
     adapters.sort_by(|a, b| a.name.cmp(&b.name));
     adapters
+}
+
+/// Query WMI for network adapter driver service names and match them to our
+/// adapter list by friendly name.  If the query fails, adapters simply keep
+/// `driver: None`.
+#[cfg(not(unix))]
+fn win_populate_driver_names(adapters: &mut [NetworkAdapter]) {
+    let ps_script = r#"
+Get-CimInstance Win32_NetworkAdapter | ForEach-Object {
+    [PSCustomObject]@{
+        Name        = $_.Name
+        NetConnectionID = $_.NetConnectionID
+        ServiceName = $_.ServiceName
+    }
+} | ConvertTo-Json -Compress
+"#;
+
+    let output = match std::process::Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", ps_script])
+        .output()
+    {
+        Ok(o) => o,
+        Err(e) => {
+            log::debug!("WMI network driver query failed to launch: {e}");
+            return;
+        }
+    };
+
+    if !output.status.success() {
+        log::debug!(
+            "WMI network driver query failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = stdout.trim();
+    if stdout.is_empty() {
+        return;
+    }
+
+    // PowerShell emits a bare object (not array) when there is exactly one result.
+    let json_str = if stdout.starts_with('[') {
+        stdout.to_string()
+    } else {
+        format!("[{stdout}]")
+    };
+
+    #[derive(serde::Deserialize)]
+    #[allow(non_snake_case)]
+    struct WmiNicRow {
+        Name: Option<String>,
+        NetConnectionID: Option<String>,
+        ServiceName: Option<String>,
+    }
+
+    let rows: Vec<WmiNicRow> = match serde_json::from_str(&json_str) {
+        Ok(r) => r,
+        Err(e) => {
+            log::debug!("Failed to parse WMI network adapter JSON: {e}");
+            return;
+        }
+    };
+
+    for adapter in adapters.iter_mut() {
+        // Match by NetConnectionID (the friendly name Windows shows, e.g. "Wi-Fi",
+        // "Ethernet") which is what GetAdaptersAddresses returns as FriendlyName.
+        // Fall back to matching by Name (the full device description).
+        if let Some(row) = rows.iter().find(|r| {
+            r.NetConnectionID
+                .as_deref()
+                .is_some_and(|id| id == adapter.name)
+                || r.Name.as_deref().is_some_and(|n| n == adapter.name)
+        }) {
+            if let Some(ref svc) = row.ServiceName {
+                if !svc.is_empty() {
+                    adapter.driver = Some(svc.clone());
+                }
+            }
+        }
+    }
 }
 
 #[cfg(not(unix))]

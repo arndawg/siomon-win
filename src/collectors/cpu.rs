@@ -19,7 +19,18 @@ pub fn collect() -> Result<Vec<CpuInfo>> {
 
     // Extract procfs fields from the first processor entry.
     let first_proc = cpuinfo_entries.first();
-    let microcode = first_proc.and_then(|p| p.get("microcode").cloned());
+    let microcode = first_proc
+        .and_then(|p| p.get("microcode").cloned())
+        .or_else(|| {
+            #[cfg(not(unix))]
+            {
+                read_windows_microcode()
+            }
+            #[cfg(unix)]
+            {
+                None
+            }
+        });
     let vulnerabilities = gather_vulnerabilities();
     let (phys_addr_bits, virt_addr_bits) = parse_address_sizes(first_proc);
 
@@ -708,6 +719,43 @@ fn parse_address_sizes(entry: Option<&HashMap<String, String>>) -> (Option<u8>, 
     }
 
     (physical, virtual_)
+}
+
+#[cfg(not(unix))]
+fn read_windows_microcode() -> Option<String> {
+    let output = std::process::Command::new("reg")
+        .args([
+            "query",
+            r"HKLM\HARDWARE\DESCRIPTION\System\CentralProcessor\0",
+            "/v",
+            "Update Revision",
+        ])
+        .output()
+        .ok()?;
+    let text = String::from_utf8_lossy(&output.stdout);
+    // Line looks like: "    Update Revision    REG_BINARY    00000000XXXXXXXX"
+    // The hex string after REG_BINARY contains the revision
+    for line in text.lines() {
+        if line.contains("Update Revision") {
+            let parts: Vec<&str> = line.trim().split_whitespace().collect();
+            if let Some(hex) = parts.last() {
+                // The revision is in the upper 4 bytes (bytes 4-7 of the 8-byte value)
+                if hex.len() >= 16 {
+                    let rev = &hex[8..16]; // upper 4 bytes
+                    let trimmed = rev.trim_start_matches('0');
+                    if !trimmed.is_empty() {
+                        return Some(format!("0x{}", trimmed));
+                    }
+                }
+                // Fallback: return full hex
+                let trimmed = hex.trim_start_matches('0');
+                if !trimmed.is_empty() {
+                    return Some(format!("0x{}", trimmed));
+                }
+            }
+        }
+    }
+    None
 }
 
 pub struct CpuCollector;

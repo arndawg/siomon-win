@@ -209,7 +209,7 @@ fn collect_all(cli: &Cli) -> SystemInfo {
     // Run all collectors in parallel — the slow ones (GPU/NVML, storage/SMART,
     // PCI enumeration) no longer block each other.
     let t = std::time::Instant::now();
-    let (cpus, memory, motherboard, gpus, storage, network, pci, audio, usb, batteries) =
+    let (cpus, memory, mut motherboard, gpus, storage, network, pci, audio, usb, batteries) =
         std::thread::scope(|s| {
             let h_cpu = s.spawn(|| {
                 collectors::cpu::collect().unwrap_or_else(|e| {
@@ -244,6 +244,40 @@ fn collect_all(cli: &Cli) -> SystemInfo {
         "Hardware collection completed in {}ms",
         t.elapsed().as_millis()
     );
+
+    // On Windows, fill in the chipset from the PCI host bridge at 00:00.0.
+    // Prefer a device whose class is Host Bridge (0x0600) or whose pci_ids
+    // name contains "Root Complex" / "Host Bridge" keywords, since Windows
+    // PCI enumeration may place multiple devices at the same address and the
+    // class_code field may be zero (unavailable from WMI).
+    #[cfg(not(unix))]
+    {
+        if motherboard.chipset.is_none() {
+            let candidates: Vec<_> = pci
+                .iter()
+                .filter(|d| d.address == "0000:00:00.0")
+                .collect();
+            let host_bridge = candidates
+                .iter()
+                .find(|d| (d.class_code >> 8) == 0x0600)
+                .or_else(|| {
+                    candidates.iter().find(|d| {
+                        d.device_name
+                            .as_deref()
+                            .map(|n| {
+                                let lower = n.to_lowercase();
+                                lower.contains("root complex")
+                                    || lower.contains("host bridge")
+                            })
+                            .unwrap_or(false)
+                    })
+                })
+                .or_else(|| candidates.first());
+            if let Some(hb) = host_bridge {
+                motherboard.chipset = hb.device_name.clone();
+            }
+        }
+    }
 
     SystemInfo {
         timestamp: Utc::now(),

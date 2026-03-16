@@ -33,6 +33,8 @@ pub mod smbus_win;
 #[cfg(windows)]
 pub mod hsmp_win;
 #[cfg(windows)]
+pub mod acpi_thermal_win;
+#[cfg(windows)]
 pub mod whea;
 
 use crate::model::sensor::{SensorId, SensorReading};

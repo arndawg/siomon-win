@@ -43,6 +43,15 @@ pub struct BaseboardEntry {
     pub serial_number: Option<String>,
 }
 
+/// Parsed Physical Memory Array (SMBIOS Type 16).
+#[derive(Debug, Clone)]
+pub struct PhysicalMemoryArrayEntry {
+    /// Maximum capacity in bytes.  `None` if unknown/not reported.
+    pub max_capacity_bytes: Option<u64>,
+    /// Number of memory device (Type 17) slots described by this array.
+    pub number_of_devices: Option<u16>,
+}
+
 /// Parsed Memory Device (SMBIOS Type 17).
 #[derive(Debug, Clone)]
 pub struct MemoryDeviceEntry {
@@ -69,6 +78,7 @@ pub struct SmbiosData {
     pub bios: Option<BiosEntry>,
     pub system: Option<SystemEntry>,
     pub baseboard: Option<BaseboardEntry>,
+    pub physical_memory_arrays: Vec<PhysicalMemoryArrayEntry>,
     pub memory_devices: Vec<MemoryDeviceEntry>,
 }
 
@@ -174,6 +184,7 @@ fn parse_table(data: &[u8]) -> SmbiosData {
         bios: None,
         system: None,
         baseboard: None,
+        physical_memory_arrays: Vec::new(),
         memory_devices: Vec::new(),
     };
 
@@ -226,6 +237,11 @@ fn parse_table(data: &[u8]) -> SmbiosData {
             2 => {
                 if result.baseboard.is_none() {
                     result.baseboard = Some(parse_baseboard(structure_data, struct_len));
+                }
+            }
+            16 => {
+                if let Some(arr) = parse_physical_memory_array(structure_data, struct_len) {
+                    result.physical_memory_arrays.push(arr);
                 }
             }
             17 => {
@@ -487,6 +503,46 @@ fn parse_baseboard(data: &[u8], header_len: usize) -> BaseboardEntry {
         version: get_string(data, hl, read_u8(data, 0x06).unwrap_or(0)),
         serial_number: get_string(data, hl, read_u8(data, 0x07).unwrap_or(0)),
     }
+}
+
+// ---------------------------------------------------------------------------
+// Type 16 — Physical Memory Array
+// ---------------------------------------------------------------------------
+
+fn parse_physical_memory_array(data: &[u8], header_len: usize) -> Option<PhysicalMemoryArrayEntry> {
+    // Minimum useful length: 0x0F bytes (covers Number of Memory Devices).
+    if header_len < 0x0F {
+        return None;
+    }
+
+    // Maximum Capacity at offset 0x07 (u32, kilobytes).
+    // 0x80000000 means use Extended Maximum Capacity at offset 0x0F (u64, bytes).
+    let max_capacity_bytes = {
+        let raw_kb = read_u32_le(data, 0x07).unwrap_or(0);
+        if raw_kb == 0x8000_0000 {
+            // Extended Maximum Capacity at offset 0x0F (u64, bytes).
+            if header_len > 0x16 {
+                let lo = read_u32_le(data, 0x0F).unwrap_or(0) as u64;
+                let hi = read_u32_le(data, 0x13).unwrap_or(0) as u64;
+                let val = lo | (hi << 32);
+                if val > 0 { Some(val) } else { None }
+            } else {
+                None
+            }
+        } else if raw_kb > 0 {
+            Some(raw_kb as u64 * 1024)
+        } else {
+            None
+        }
+    };
+
+    // Number of Memory Devices at offset 0x0D (u16).
+    let number_of_devices = read_u16_le(data, 0x0D).and_then(|v| if v == 0 { None } else { Some(v) });
+
+    Some(PhysicalMemoryArrayEntry {
+        max_capacity_bytes,
+        number_of_devices,
+    })
 }
 
 // ---------------------------------------------------------------------------

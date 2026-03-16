@@ -1,7 +1,4 @@
-use crate::model::memory::MemoryInfo;
-#[cfg(unix)]
-use crate::model::memory::{DimmInfo, MemoryType};
-#[cfg(unix)]
+use crate::model::memory::{DimmInfo, MemoryInfo, MemoryType};
 use crate::parsers::smbios;
 #[cfg(unix)]
 use crate::platform::procfs;
@@ -49,7 +46,6 @@ fn collect_dimms() -> Vec<DimmInfo> {
 }
 
 /// Convert raw SMBIOS memory device entries into the model's DimmInfo.
-#[cfg(unix)]
 fn convert_smbios_devices(devices: &[smbios::MemoryDeviceEntry]) -> Vec<DimmInfo> {
     devices
         .iter()
@@ -87,7 +83,6 @@ fn convert_smbios_devices(devices: &[smbios::MemoryDeviceEntry]) -> Vec<DimmInfo
 }
 
 /// Map the SMBIOS memory type byte to the model MemoryType enum.
-#[cfg(unix)]
 fn smbios_memory_type(code: u8) -> MemoryType {
     match code {
         0x18 => MemoryType::DDR3,
@@ -281,15 +276,49 @@ pub fn collect() -> MemoryInfo {
     use sysinfo::System;
     let mut sys = System::new();
     sys.refresh_memory();
+
+    // Parse SMBIOS tables to get DIMM details, capacity, and slot counts.
+    let (dimms, max_capacity_bytes, total_slots) = match smbios::parse() {
+        Some(smbios_data) => {
+            let dimms = convert_smbios_devices(&smbios_data.memory_devices);
+
+            // Aggregate max capacity and total slots from all Type 16 arrays.
+            let max_cap: u64 = smbios_data
+                .physical_memory_arrays
+                .iter()
+                .filter_map(|a| a.max_capacity_bytes)
+                .sum();
+            let total_sl: u32 = smbios_data
+                .physical_memory_arrays
+                .iter()
+                .filter_map(|a| a.number_of_devices)
+                .map(|n| n as u32)
+                .sum();
+
+            (
+                dimms,
+                if max_cap > 0 { Some(max_cap) } else { None },
+                if total_sl > 0 { Some(total_sl) } else { None },
+            )
+        }
+        None => (vec![], None, None),
+    };
+
+    let populated_slots = if dimms.is_empty() {
+        None
+    } else {
+        Some(dimms.len() as u32)
+    };
+
     MemoryInfo {
         total_bytes: sys.total_memory(),
         available_bytes: sys.available_memory(),
         swap_total_bytes: sys.total_swap(),
         swap_free_bytes: sys.free_swap(),
-        max_capacity_bytes: None,
-        total_slots: None,
-        populated_slots: None,
-        dimms: vec![],
+        max_capacity_bytes,
+        total_slots,
+        populated_slots,
+        dimms,
     }
 }
 

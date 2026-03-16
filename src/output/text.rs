@@ -318,7 +318,13 @@ pub fn print_summary(info: &SystemInfo) {
                     }
                 })
                 .unwrap_or_else(|| "N/A".into());
-            let driver = nic.driver.as_deref().unwrap_or("unknown");
+
+            // Build parenthetical: (interface_type, driver) or just (interface_type)
+            let iface_type = format!("{}", nic.interface_type);
+            let detail = match nic.driver.as_deref() {
+                Some(drv) => format!("{}, {}", iface_type, drv),
+                None => iface_type,
+            };
 
             // Try to find PCI device name for this NIC
             let pci_name = nic.pci_bus_address.as_ref().and_then(|addr| {
@@ -328,11 +334,9 @@ pub fn print_summary(info: &SystemInfo) {
                     .and_then(|p| p.device_name.as_deref())
             });
 
+            println!("  {}: {} ({}) [{}]", nic.name, speed, detail, nic.operstate);
             if let Some(pci_name) = pci_name {
-                println!("  {}: {} ({}) [{}]", nic.name, speed, driver, nic.operstate);
                 println!("    {pci_name}");
-            } else {
-                println!("  {}: {} ({}) [{}]", nic.name, speed, driver, nic.operstate);
             }
             if let Some(ref mac) = nic.mac_address {
                 println!("    MAC: {mac}");

@@ -307,6 +307,7 @@ fn discover_all_sources(
     #[cfg(feature = "nvidia")]
     sources.push(Box::new(super::gpu_sensors_adl::AdlGpuSensorSource::discover()));
     sources.push(Box::new(super::whea::WheaSource::discover()));
+    sources.push(Box::new(super::acpi_thermal_win::AcpiThermalSource::discover()));
     sources.push(Box::new(super::rapl_win::RaplWinSource::discover()));
     let ipmi_src = super::ipmi_win::IpmiWinSource::discover();
     log::info!("IPMI: {}", if ipmi_src.is_available() { "yes" } else { "no" });

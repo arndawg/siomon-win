@@ -13,7 +13,7 @@ pub fn collect() -> MotherboardInfo {
     let serial = get_wmic_value("baseboard", "SerialNumber");
     let version = get_wmic_value("baseboard", "Version");
     let bios_version = get_wmic_value("bios", "SMBIOSBIOSVersion");
-    let bios_date = get_wmic_value("bios", "ReleaseDate");
+    let bios_date = get_wmic_value("bios", "ReleaseDate").map(|raw| format_wmi_date(&raw));
     let bios_vendor = get_wmic_value("bios", "Manufacturer");
     let bios_release = match (
         get_wmic_value("bios", "SMBIOSMajorVersion"),
@@ -118,6 +118,15 @@ fn get_wmic_value(class: &str, property: &str) -> Option<String> {
         }
     }
     None
+}
+
+#[cfg(not(unix))]
+fn format_wmi_date(raw: &str) -> String {
+    if raw.len() >= 8 {
+        format!("{}-{}-{}", &raw[0..4], &raw[4..6], &raw[6..8])
+    } else {
+        raw.to_string()
+    }
 }
 
 #[cfg(unix)]
