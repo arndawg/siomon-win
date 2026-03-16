@@ -732,42 +732,35 @@ fn format_bytes_u128(bytes: u128) -> String {
     }
 }
 
-/// Check whether the current process is running with Administrator privileges.
-///
-/// Attempts to open `\\.\PhysicalDrive0` for reading — this requires admin on
-/// Windows.  If the open fails with `ACCESS_DENIED`, the user is not elevated.
+/// Check whether the current process is running with Administrator (elevated)
+/// privileges via the Windows token elevation API.
 #[cfg(windows)]
-fn is_windows_admin() -> bool {
+pub fn is_windows_admin() -> bool {
+    use std::mem;
     use std::ptr;
-    use winapi::um::fileapi::{CreateFileW, OPEN_EXISTING};
-    use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
-    use winapi::um::winnt::{FILE_SHARE_READ, FILE_SHARE_WRITE, GENERIC_READ};
+    use winapi::um::handleapi::CloseHandle;
+    use winapi::um::processthreadsapi::{GetCurrentProcess, OpenProcessToken};
+    use winapi::um::securitybaseapi::GetTokenInformation;
+    use winapi::um::winnt::{TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
 
-    fn to_wide(s: &str) -> Vec<u16> {
-        use std::ffi::OsStr;
-        use std::os::windows::ffi::OsStrExt;
-        OsStr::new(s)
-            .encode_wide()
-            .chain(std::iter::once(0))
-            .collect()
-    }
-
-    let wide = to_wide("\\\\.\\PhysicalDrive0");
     unsafe {
-        let handle = CreateFileW(
-            wide.as_ptr(),
-            GENERIC_READ,
-            FILE_SHARE_READ | FILE_SHARE_WRITE,
-            ptr::null_mut(),
-            OPEN_EXISTING,
-            0,
-            ptr::null_mut(),
-        );
-        if handle == INVALID_HANDLE_VALUE {
+        let mut token = ptr::null_mut();
+        if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) == 0 {
             return false;
         }
-        CloseHandle(handle);
-        true
+
+        let mut elevation: TOKEN_ELEVATION = mem::zeroed();
+        let mut returned: u32 = 0;
+        let ok = GetTokenInformation(
+            token,
+            TokenElevation,
+            &mut elevation as *mut TOKEN_ELEVATION as *mut _,
+            mem::size_of::<TOKEN_ELEVATION>() as u32,
+            &mut returned,
+        );
+        CloseHandle(token);
+
+        ok != 0 && elevation.TokenIsElevated != 0
     }
 }
 
