@@ -305,6 +305,10 @@ fn discover_all_sources(
     sources.push(Box::new(network_stats::NetworkStatsSource::discover()));
     sources.push(Box::new(disk_activity::DiskActivitySource::discover()));
     sources.push(Box::new(gpu_sensors::GpuSensorSource::discover(no_nvidia)));
+    sources.push(Box::new(super::whea::WheaSource::discover()));
+    let ipmi_src = super::ipmi_win::IpmiWinSource::discover();
+    log::info!("IPMI: {}", if ipmi_src.is_available() { "yes" } else { "no" });
+    sources.push(Box::new(ipmi_src));
     sources
 }
 

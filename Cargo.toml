@@ -75,7 +75,7 @@ ipmi-rs = { version = "0.5", default-features = true }
 
 [target.'cfg(windows)'.dependencies]
 sysinfo = "0.33"
-winapi = { version = "0.3", features = ["sysinfoapi", "winbase", "powerbase", "minwinbase", "fileapi", "ioapiset", "handleapi", "winnt", "winioctl", "iphlpapi", "iptypes", "ifdef", "winsock2", "ws2def", "ws2ipdef"] }
+winapi = { version = "0.3", features = ["sysinfoapi", "winbase", "powerbase", "minwinbase", "fileapi", "ioapiset", "handleapi", "winnt", "winioctl", "iphlpapi", "iptypes", "ifdef", "winsock2", "ws2def", "ws2ipdef", "wingdi", "winuser"] }
 
 [profile.release]
 opt-level = "z"

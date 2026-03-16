@@ -23,6 +23,10 @@ pub mod poller;
 pub mod rapl;
 #[cfg(unix)]
 pub mod superio;
+#[cfg(windows)]
+pub mod ipmi_win;
+#[cfg(windows)]
+pub mod whea;
 
 use crate::model::sensor::{SensorId, SensorReading};
 
