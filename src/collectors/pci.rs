@@ -205,7 +205,7 @@ $result | ConvertTo-Json -Compress
 
     let raw: Vec<WmiPciRow> = serde_json::from_str(&json_str).ok()?;
 
-    let mut devices: Vec<PciDevice> = raw.iter().filter_map(|r| wmi_row_to_pci(r)).collect();
+    let mut devices: Vec<PciDevice> = raw.iter().filter_map(wmi_row_to_pci).collect();
 
     // Attach PCIe link info via WinRing0 PCI config space reads (if available)
     attach_pcie_link_info(&mut devices);
@@ -293,7 +293,10 @@ fn read_pcie_link_winring0(
             let current_width = ((link_status >> 4) & 0x3F) as u8;
 
             // Ignore devices with no valid link info (all zeros or unexpected values)
-            if current_speed_code == 0 && current_width == 0 && max_speed_code == 0 && max_width == 0
+            if current_speed_code == 0
+                && current_width == 0
+                && max_speed_code == 0
+                && max_width == 0
             {
                 return None;
             }
@@ -376,9 +379,7 @@ fn wmi_row_to_pci(row: &WmiPciRow) -> Option<PciDevice> {
     let (vendor_name, device_name_resolved) = resolve_pci_names(vendor_id, device_id_val);
     let (class_name, subclass_name) = (None, None); // class code unavailable from WMI PnP
 
-    let driver = row.driver.clone().or_else(|| {
-        row.name.clone()
-    });
+    let driver = row.driver.clone().or_else(|| row.name.clone());
     let enabled = row.status.as_deref() == Some("OK");
 
     Some(PciDevice {

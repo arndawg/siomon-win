@@ -250,11 +250,11 @@ impl crate::sensors::SensorSource for DiskActivitySource {
             let usage = disk.usage();
             let read = usage.total_read_bytes;
             let written = usage.total_written_bytes;
-            let (prev_read, prev_written) = self.prev.get(&name).copied().unwrap_or((read, written));
+            let (prev_read, prev_written) =
+                self.prev.get(&name).copied().unwrap_or((read, written));
 
             let read_rate = (read.saturating_sub(prev_read)) as f64 / elapsed / 1_048_576.0;
-            let write_rate =
-                (written.saturating_sub(prev_written)) as f64 / elapsed / 1_048_576.0;
+            let write_rate = (written.saturating_sub(prev_written)) as f64 / elapsed / 1_048_576.0;
             self.prev.insert(name.clone(), (read, written));
 
             results.push((

@@ -410,11 +410,7 @@ fn scan_spd5118_devices(ctrl: &SmbusController) -> Vec<DimmSensor> {
 
     for addr in SPD_ADDR_FIRST..=SPD_ADDR_LAST {
         if let Some(dimm) = probe_spd5118(ctrl, addr, dimm_index) {
-            log::info!(
-                "SPD5118 DIMM found: addr {:#04x} -> {}",
-                addr,
-                dimm.label
-            );
+            log::info!("SPD5118 DIMM found: addr {:#04x} -> {}", addr, dimm.label);
             dimm_index += 1;
             dimms.push(dimm);
         }

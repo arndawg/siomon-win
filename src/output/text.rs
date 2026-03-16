@@ -236,7 +236,11 @@ pub fn print_summary(info: &SystemInfo) {
             #[cfg(not(unix))]
             let dev_label = dev.device_name.clone();
             let iface = match &dev.interface {
-                crate::model::storage::StorageInterface::Unknown(s) if s.is_empty() || s == "unknown" => "Unknown".to_string(),
+                crate::model::storage::StorageInterface::Unknown(s)
+                    if s.is_empty() || s == "unknown" =>
+                {
+                    "Unknown".to_string()
+                }
                 crate::model::storage::StorageInterface::Unknown(s) => s.clone(),
                 other => format!("{other:?}"),
             };
@@ -742,7 +746,10 @@ fn is_windows_admin() -> bool {
     fn to_wide(s: &str) -> Vec<u16> {
         use std::ffi::OsStr;
         use std::os::windows::ffi::OsStrExt;
-        OsStr::new(s).encode_wide().chain(std::iter::once(0)).collect()
+        OsStr::new(s)
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect()
     }
 
     let wide = to_wide("\\\\.\\PhysicalDrive0");

@@ -145,9 +145,7 @@ fn parse_windows() -> Option<SmbiosData> {
 
     // Second call: fill the buffer.
     let mut buffer = vec![0u8; size as usize];
-    let written = unsafe {
-        GetSystemFirmwareTable(RSMB, 0, buffer.as_mut_ptr() as *mut _, size)
-    };
+    let written = unsafe { GetSystemFirmwareTable(RSMB, 0, buffer.as_mut_ptr() as *mut _, size) };
     if written == 0 {
         log::warn!("SMBIOS: GetSystemFirmwareTable failed to fill buffer");
         return None;
@@ -537,7 +535,8 @@ fn parse_physical_memory_array(data: &[u8], header_len: usize) -> Option<Physica
     };
 
     // Number of Memory Devices at offset 0x0D (u16).
-    let number_of_devices = read_u16_le(data, 0x0D).and_then(|v| if v == 0 { None } else { Some(v) });
+    let number_of_devices =
+        read_u16_le(data, 0x0D).and_then(|v| if v == 0 { None } else { Some(v) });
 
     Some(PhysicalMemoryArrayEntry {
         max_capacity_bytes,

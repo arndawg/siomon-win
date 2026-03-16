@@ -1,17 +1,15 @@
+use std::collections::HashMap;
 #[cfg(unix)]
 use std::collections::{BTreeMap, BTreeSet};
-use std::collections::HashMap;
 use std::path::Path;
 
 use crate::db::cpu_codenames;
 use crate::error::Result;
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
 use crate::model::cpu::CacheLevel;
-use crate::model::cpu::{
-    CpuCache, CpuFeatures, CpuInfo, CpuTopology, CpuVendor, CpuVulnerability,
-};
 #[cfg(unix)]
 use crate::model::cpu::NumaNode;
+use crate::model::cpu::{CpuCache, CpuFeatures, CpuInfo, CpuTopology, CpuVendor, CpuVulnerability};
 use crate::platform::{procfs, sysfs};
 
 /// Collect CPU information, returning one `CpuInfo` per physical package.
@@ -742,7 +740,7 @@ fn read_windows_microcode() -> Option<String> {
     // The hex string after REG_BINARY contains the revision
     for line in text.lines() {
         if line.contains("Update Revision") {
-            let parts: Vec<&str> = line.trim().split_whitespace().collect();
+            let parts: Vec<&str> = line.split_whitespace().collect();
             if let Some(hex) = parts.last() {
                 // The revision is in the upper 4 bytes (bytes 4-7 of the 8-byte value)
                 if hex.len() >= 16 {

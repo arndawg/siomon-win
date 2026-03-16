@@ -70,7 +70,7 @@ impl AdlGpuSensorSource {
             }
 
             // Skip inactive adapters.
-            if lib.adapter_active(info.adapter_index).unwrap_or(false) == false {
+            if !lib.adapter_active(info.adapter_index).unwrap_or(false) {
                 continue;
             }
 

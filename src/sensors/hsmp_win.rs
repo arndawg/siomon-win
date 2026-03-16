@@ -67,12 +67,7 @@ fn smn_write(wr: &WinRing0, addr: u32, val: u32) {
 /// `num_args_in` arguments are written from `args_in`, and `num_args_out`
 /// response words are read back.  Returns `None` on timeout (mailbox did not
 /// respond within ~100ms).
-fn hsmp_send(
-    wr: &WinRing0,
-    msg_id: u32,
-    args_in: &[u32],
-    num_args_out: usize,
-) -> Option<Vec<u32>> {
+fn hsmp_send(wr: &WinRing0, msg_id: u32, args_in: &[u32], num_args_out: usize) -> Option<Vec<u32>> {
     // 1. Write input arguments
     for (i, &arg) in args_in.iter().enumerate() {
         smn_write(wr, HSMP_MSG_ARG_BASE + (i as u32) * 4, arg);

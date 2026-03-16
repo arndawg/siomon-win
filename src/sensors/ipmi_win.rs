@@ -303,10 +303,7 @@ Chassis Intru    | na         |            | na    | na        | na        | na 
             map_unit("degrees C"),
             (SensorUnit::Celsius, SensorCategory::Temperature)
         );
-        assert_eq!(
-            map_unit("RPM"),
-            (SensorUnit::Rpm, SensorCategory::Fan)
-        );
+        assert_eq!(map_unit("RPM"), (SensorUnit::Rpm, SensorCategory::Fan));
         assert_eq!(
             map_unit("Volts"),
             (SensorUnit::Volts, SensorCategory::Voltage)

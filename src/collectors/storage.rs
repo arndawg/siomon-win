@@ -1,6 +1,6 @@
-use crate::model::storage::{StorageDevice, StorageInterface};
 #[cfg(unix)]
 use crate::model::storage::{NvmeDetails, SmartData};
+use crate::model::storage::{StorageDevice, StorageInterface};
 #[cfg(unix)]
 use crate::platform::sysfs;
 #[cfg(unix)]
@@ -99,14 +99,14 @@ pub fn collect() -> Vec<StorageDevice> {
 /// by capacity (best-effort heuristic).
 #[cfg(windows)]
 fn attach_smart_data(devices: &mut [StorageDevice]) {
+    use std::mem;
+    use std::ptr;
     use winapi::shared::minwindef::{DWORD, FALSE};
     use winapi::um::fileapi::CreateFileW;
     use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
     use winapi::um::ioapiset::DeviceIoControl;
     use winapi::um::winioctl::IOCTL_DISK_GET_DRIVE_GEOMETRY_EX;
     use winapi::um::winnt::{FILE_SHARE_READ, FILE_SHARE_WRITE, GENERIC_READ};
-    use std::mem;
-    use std::ptr;
 
     /// Minimal `DISK_GEOMETRY_EX` — we only need the total `DiskSize`.
     #[repr(C)]
@@ -129,14 +129,22 @@ fn attach_smart_data(devices: &mut [StorageDevice]) {
     fn to_wide(s: &str) -> Vec<u16> {
         use std::ffi::OsStr;
         use std::os::windows::ffi::OsStrExt;
-        OsStr::new(s).encode_wide().chain(std::iter::once(0)).collect()
+        OsStr::new(s)
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect()
     }
 
     for drive_num in 0u32..16 {
         // Try NVMe SMART first
         if let Some(log) = nvme_win::read_nvme_smart(drive_num) {
             let smart = nvme_win::nvme_smart_to_smart_data(&log);
-            if let Some(dev) = match_physical_to_logical(devices, drive_num, to_wide, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX) {
+            if let Some(dev) = match_physical_to_logical(
+                devices,
+                drive_num,
+                to_wide,
+                IOCTL_DISK_GET_DRIVE_GEOMETRY_EX,
+            ) {
                 dev.smart = Some(smart);
                 if dev.interface == StorageInterface::Unknown("unknown".to_string()) {
                     dev.interface = StorageInterface::NVMe;
@@ -148,7 +156,12 @@ fn attach_smart_data(devices: &mut [StorageDevice]) {
         // Try SATA SMART
         if let Some(ata) = sata_win::read_sata_smart(drive_num) {
             let smart = sata_win::sata_smart_to_smart_data(&ata);
-            if let Some(dev) = match_physical_to_logical(devices, drive_num, to_wide, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX) {
+            if let Some(dev) = match_physical_to_logical(
+                devices,
+                drive_num,
+                to_wide,
+                IOCTL_DISK_GET_DRIVE_GEOMETRY_EX,
+            ) {
                 dev.smart = Some(smart);
                 if dev.interface == StorageInterface::Unknown("unknown".to_string()) {
                     dev.interface = StorageInterface::SATA;
@@ -160,12 +173,12 @@ fn attach_smart_data(devices: &mut [StorageDevice]) {
     /// Find the logical device (from sysinfo) that best matches a physical
     /// drive by capacity.  Returns `None` if no unmatched device is close
     /// enough in size (<10 % difference).
-    fn match_physical_to_logical<'a>(
-        devices: &'a mut [StorageDevice],
+    fn match_physical_to_logical(
+        devices: &mut [StorageDevice],
         drive_num: u32,
         to_wide: fn(&str) -> Vec<u16>,
         ioctl_geom: DWORD,
-    ) -> Option<&'a mut StorageDevice> {
+    ) -> Option<&mut StorageDevice> {
         // Read the physical drive capacity via IOCTL_DISK_GET_DRIVE_GEOMETRY_EX.
         let phys_capacity = get_physical_drive_size(drive_num, to_wide, ioctl_geom)?;
 
@@ -181,11 +194,7 @@ fn attach_smart_data(devices: &mut [StorageDevice]) {
             // sysinfo reports usable filesystem size which is smaller than raw
             // physical size, so allow physical >= logical with up to 15 %
             // difference.
-            let diff = if phys_capacity >= cap {
-                phys_capacity - cap
-            } else {
-                cap - phys_capacity
-            };
+            let diff = phys_capacity.abs_diff(cap);
             let threshold = phys_capacity / 6; // ~16 %
             if diff < threshold && diff < best_diff {
                 best_diff = diff;
@@ -412,14 +421,12 @@ fn read_nvme_smart_data(ctrl_name: &str) -> Option<SmartData> {
     })
 }
 
-
 #[cfg(unix)]
 fn read_sata_smart_data(name: &str) -> Option<SmartData> {
     let smart_path = format!("/dev/{}", name);
     sata_ioctl::read_sata_smart(Path::new(&smart_path))
         .map(|ata| sata_ioctl::sata_smart_to_smart_data(&ata))
 }
-
 
 #[cfg(unix)]
 fn detect_interface(block_path: &Path) -> StorageInterface {

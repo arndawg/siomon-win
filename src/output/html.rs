@@ -226,7 +226,11 @@ pub fn print(info: &SystemInfo) {
         for d in &info.storage {
             println!(
                 "<tr><td>{}</td><td>{}</td><td>{:?}</td><td>{}</td><td>{}</td></tr>",
-                if cfg!(unix) { format!("/dev/{}", d.device_name) } else { d.device_name.clone() },
+                if cfg!(unix) {
+                    format!("/dev/{}", d.device_name)
+                } else {
+                    d.device_name.clone()
+                },
                 d.model.as_deref().unwrap_or("-"),
                 d.interface,
                 format_bytes(d.capacity_bytes),

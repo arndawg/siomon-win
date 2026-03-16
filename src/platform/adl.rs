@@ -112,8 +112,11 @@ pub struct AdlOD6FanSpeedInfo {
 // ---------------------------------------------------------------------------
 
 /// ADL2_Main_Control_Create(callback, iEnumConnectedAdapters, *context)
-type FnAdl2MainControlCreate =
-    unsafe extern "system" fn(extern "system" fn(c_int) -> *mut c_void, c_int, *mut *mut c_void) -> c_int;
+type FnAdl2MainControlCreate = unsafe extern "system" fn(
+    extern "system" fn(c_int) -> *mut c_void,
+    c_int,
+    *mut *mut c_void,
+) -> c_int;
 
 /// ADL2_Main_Control_Destroy(context)
 type FnAdl2MainControlDestroy = unsafe extern "system" fn(*mut c_void) -> c_int;
@@ -188,8 +191,10 @@ impl AdlLibrary {
                 *lib.get(b"ADL2_Adapter_Active_Get\0").ok()?;
 
             // Overdrive 6 symbols are optional — older drivers may lack them.
-            let fn_od6_temperature: Option<FnAdl2OD6TemperatureGet> =
-                lib.get(b"ADL2_Overdrive6_Temperature_Get\0").ok().map(|s| *s);
+            let fn_od6_temperature: Option<FnAdl2OD6TemperatureGet> = lib
+                .get(b"ADL2_Overdrive6_Temperature_Get\0")
+                .ok()
+                .map(|s| *s);
             let fn_od6_fan_speed: Option<FnAdl2OD6FanSpeedGet> =
                 lib.get(b"ADL2_Overdrive6_FanSpeed_Get\0").ok().map(|s| *s);
             let fn_od6_thermal_caps: Option<FnAdl2OD6ThermalCaps> = lib
@@ -252,9 +257,8 @@ impl AdlLibrary {
     pub fn adapter_info(&self, count: i32) -> Result<Vec<AdlAdapterInfo>, AdlError> {
         let mut infos: Vec<AdlAdapterInfo> = vec![AdlAdapterInfo::default(); count as usize];
         let size = (count as usize) * std::mem::size_of::<AdlAdapterInfo>();
-        let ret = unsafe {
-            (self.fn_adapter_info)(self.context, infos.as_mut_ptr(), size as c_int)
-        };
+        let ret =
+            unsafe { (self.fn_adapter_info)(self.context, infos.as_mut_ptr(), size as c_int) };
         adl_check(ret)?;
         Ok(infos)
     }

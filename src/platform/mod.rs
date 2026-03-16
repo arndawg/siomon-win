@@ -1,15 +1,15 @@
+#[cfg(all(windows, feature = "nvidia"))]
+pub mod adl;
 #[cfg(unix)]
 pub mod msr;
 #[cfg(windows)]
 pub mod msr_win;
 #[cfg(unix)]
 pub mod nvme_ioctl;
-#[cfg(feature = "nvidia")]
-pub mod nvml;
-#[cfg(all(windows, feature = "nvidia"))]
-pub mod adl;
 #[cfg(windows)]
 pub mod nvme_win;
+#[cfg(feature = "nvidia")]
+pub mod nvml;
 #[cfg(unix)]
 pub mod port_io;
 #[cfg(windows)]
@@ -23,8 +23,8 @@ pub mod sata_win;
 pub mod sinfo_io;
 #[cfg(windows)]
 pub mod sinfo_io_win;
-pub mod sysfs;
 #[cfg(windows)]
 pub mod smbus_win;
+pub mod sysfs;
 #[cfg(windows)]
 pub mod winring0;

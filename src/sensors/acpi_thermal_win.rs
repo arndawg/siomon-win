@@ -117,11 +117,7 @@ fn query_zones() -> Option<Vec<ThermalZone>> {
         }
     }
 
-    if zones.is_empty() {
-        None
-    } else {
-        Some(zones)
-    }
+    if zones.is_empty() { None } else { Some(zones) }
 }
 
 /// Query current temperatures and return sensor readings.
@@ -145,7 +141,7 @@ fn query_temperatures(zones: &[ThermalZone]) -> Vec<(SensorId, SensorReading)> {
         let celsius = (raw / 10.0) - 273.15;
 
         // Filter out unrealistic values.
-        if celsius < -50.0 || celsius > 150.0 {
+        if !(-50.0..=150.0).contains(&celsius) {
             log::debug!(
                 "ACPI thermal {}: ignoring unrealistic value {:.1} C (raw={})",
                 zone.name,

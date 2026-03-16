@@ -3,9 +3,9 @@ use clap::{CommandFactory, FromArgMatches};
 
 use siomon::cli::{Cli, Commands, OutputFormat};
 use siomon::model::system::SystemInfo;
-use siomon::{collectors, config, db, output, sensors};
 #[cfg(unix)]
 use siomon::platform;
+use siomon::{collectors, config, db, output, sensors};
 
 fn main() {
     env_logger::init();
@@ -191,18 +191,16 @@ fn collect_all(cli: &Cli) -> SystemInfo {
     let no_nvidia = cli.no_nvidia;
 
     #[cfg(unix)]
-    let hostname = platform::sysfs::read_string_optional(std::path::Path::new(
-        "/proc/sys/kernel/hostname",
-    ))
-    .unwrap_or_else(|| "unknown".into());
+    let hostname =
+        platform::sysfs::read_string_optional(std::path::Path::new("/proc/sys/kernel/hostname"))
+            .unwrap_or_else(|| "unknown".into());
     #[cfg(not(unix))]
     let hostname = std::env::var("COMPUTERNAME").unwrap_or_else(|_| "unknown".into());
 
     #[cfg(unix)]
-    let kernel_version = platform::sysfs::read_string_optional(std::path::Path::new(
-        "/proc/sys/kernel/osrelease",
-    ))
-    .unwrap_or_else(|| "unknown".into());
+    let kernel_version =
+        platform::sysfs::read_string_optional(std::path::Path::new("/proc/sys/kernel/osrelease"))
+            .unwrap_or_else(|| "unknown".into());
     #[cfg(not(unix))]
     let kernel_version = read_windows_version();
 
@@ -253,10 +251,7 @@ fn collect_all(cli: &Cli) -> SystemInfo {
     #[cfg(not(unix))]
     {
         if motherboard.chipset.is_none() {
-            let candidates: Vec<_> = pci
-                .iter()
-                .filter(|d| d.address == "0000:00:00.0")
-                .collect();
+            let candidates: Vec<_> = pci.iter().filter(|d| d.address == "0000:00:00.0").collect();
             let host_bridge = candidates
                 .iter()
                 .find(|d| (d.class_code >> 8) == 0x0600)
@@ -266,8 +261,7 @@ fn collect_all(cli: &Cli) -> SystemInfo {
                             .as_deref()
                             .map(|n| {
                                 let lower = n.to_lowercase();
-                                lower.contains("root complex")
-                                    || lower.contains("host bridge")
+                                lower.contains("root complex") || lower.contains("host bridge")
                             })
                             .unwrap_or(false)
                     })
@@ -351,7 +345,9 @@ fn read_windows_version() -> String {
             let s = s.trim();
             let inside = s.split('[').nth(1)?;
             let inside = inside.trim_end_matches(|c: char| c == ']' || c.is_whitespace());
-            inside.strip_prefix("Version ").map(|v| v.trim().to_string())
+            inside
+                .strip_prefix("Version ")
+                .map(|v| v.trim().to_string())
         })
         .unwrap_or_else(|| "Windows".to_string())
 }

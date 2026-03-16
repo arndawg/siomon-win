@@ -28,9 +28,7 @@ fn pci_address(bus: u8, dev: u8, func: u8) -> u32 {
 impl WinRing0 {
     /// Try to load WinRing0x64.dll and initialize. Returns None if not available.
     pub fn try_load() -> Option<&'static Self> {
-        INSTANCE
-            .get_or_init(|| Self::load_inner().ok())
-            .as_ref()
+        INSTANCE.get_or_init(|| Self::load_inner().ok()).as_ref()
     }
 
     fn load_inner() -> Result<Self, Box<dyn std::error::Error>> {
@@ -59,12 +57,10 @@ impl WinRing0 {
         }
 
         // Load function pointers
-        let read_io_port_byte = *unsafe {
-            lib.get::<unsafe extern "system" fn(u16) -> u8>(b"ReadIoPortByte\0")?
-        };
-        let write_io_port_byte = *unsafe {
-            lib.get::<unsafe extern "system" fn(u16, u8)>(b"WriteIoPortByte\0")?
-        };
+        let read_io_port_byte =
+            *unsafe { lib.get::<unsafe extern "system" fn(u16) -> u8>(b"ReadIoPortByte\0")? };
+        let write_io_port_byte =
+            *unsafe { lib.get::<unsafe extern "system" fn(u16, u8)>(b"WriteIoPortByte\0")? };
         let read_msr = *unsafe {
             lib.get::<unsafe extern "system" fn(u32, *mut u32, *mut u32) -> i32>(b"Rdmsr\0")?
         };

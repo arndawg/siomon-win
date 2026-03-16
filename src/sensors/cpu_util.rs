@@ -179,7 +179,12 @@ impl crate::sensors::SensorSource for CpuUtilSource {
         "cpu_util"
     }
 
-    fn poll(&mut self) -> Vec<(crate::model::sensor::SensorId, crate::model::sensor::SensorReading)> {
+    fn poll(
+        &mut self,
+    ) -> Vec<(
+        crate::model::sensor::SensorId,
+        crate::model::sensor::SensorReading,
+    )> {
         use crate::model::sensor::{SensorCategory, SensorId, SensorReading, SensorUnit};
         self.sys.refresh_cpu_usage();
         let cpus = self.sys.cpus();

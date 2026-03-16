@@ -5,10 +5,10 @@ use std::time::{Duration, Instant};
 
 use crate::model::sensor::{SensorId, SensorReading};
 use crate::sensors::SensorSource;
-#[cfg(unix)]
-use crate::sensors::{hwmon, rapl};
 use crate::sensors::superio;
 use crate::sensors::{cpu_freq, cpu_util, disk_activity, gpu_sensors, network_stats};
+#[cfg(unix)]
+use crate::sensors::{hwmon, rapl};
 
 pub type SensorState = Arc<RwLock<HashMap<SensorId, SensorReading>>>;
 
@@ -298,22 +298,33 @@ fn discover_all_sources(
     direct_io: bool,
     label_overrides: &HashMap<String, String>,
 ) -> Vec<Box<dyn SensorSource>> {
-    let mut sources: Vec<Box<dyn SensorSource>> = Vec::new();
-    sources.push(Box::new(cpu_freq::CpuFreqSource::discover()));
-    sources.push(Box::new(cpu_util::CpuUtilSource::discover()));
-    sources.push(Box::new(network_stats::NetworkStatsSource::discover()));
-    sources.push(Box::new(disk_activity::DiskActivitySource::discover()));
-    sources.push(Box::new(gpu_sensors::GpuSensorSource::discover(no_nvidia)));
+    let mut sources: Vec<Box<dyn SensorSource>> = vec![
+        Box::new(cpu_freq::CpuFreqSource::discover()),
+        Box::new(cpu_util::CpuUtilSource::discover()),
+        Box::new(network_stats::NetworkStatsSource::discover()),
+        Box::new(disk_activity::DiskActivitySource::discover()),
+        Box::new(gpu_sensors::GpuSensorSource::discover(no_nvidia)),
+    ];
     #[cfg(feature = "nvidia")]
-    sources.push(Box::new(super::gpu_sensors_adl::AdlGpuSensorSource::discover()));
+    sources.push(Box::new(
+        super::gpu_sensors_adl::AdlGpuSensorSource::discover(),
+    ));
     sources.push(Box::new(super::whea::WheaSource::discover()));
-    sources.push(Box::new(super::acpi_thermal_win::AcpiThermalSource::discover()));
+    sources.push(Box::new(
+        super::acpi_thermal_win::AcpiThermalSource::discover(),
+    ));
     sources.push(Box::new(super::rapl_win::RaplWinSource::discover()));
     let ipmi_src = super::ipmi_win::IpmiWinSource::discover();
-    log::info!("IPMI: {}", if ipmi_src.is_available() { "yes" } else { "no" });
+    log::info!(
+        "IPMI: {}",
+        if ipmi_src.is_available() { "yes" } else { "no" }
+    );
     sources.push(Box::new(ipmi_src));
     let hsmp_src = super::hsmp_win::HsmpWinSource::discover();
-    log::info!("HSMP: {}", if hsmp_src.is_available() { "yes" } else { "no" });
+    log::info!(
+        "HSMP: {}",
+        if hsmp_src.is_available() { "yes" } else { "no" }
+    );
     sources.push(Box::new(hsmp_src));
 
     // Super I/O and SMBus direct register access via WinRing0

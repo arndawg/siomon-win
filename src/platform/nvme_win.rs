@@ -104,13 +104,14 @@ struct StoragePropertyQuery {
 ///   - Version (DWORD)
 ///   - Size    (DWORD)
 ///   - ProtocolSpecificData (STORAGE_PROTOCOL_SPECIFIC_DATA)
-/// then the actual log page payload at the offset indicated by
-/// `ProtocolSpecificData.ProtocolDataOffset`.
+///     then the actual log page payload at the offset indicated by
+///     `ProtocolSpecificData.ProtocolDataOffset`.
 ///
 /// We allocate a buffer large enough for the descriptor header + 512 bytes.
 const PROTOCOL_SPECIFIC_DATA_SIZE: usize = mem::size_of::<StorageProtocolSpecificData>();
 const DATA_DESCRIPTOR_HEADER: usize = 8; // Version + Size
-const OUTPUT_BUF_SIZE: usize = DATA_DESCRIPTOR_HEADER + PROTOCOL_SPECIFIC_DATA_SIZE + SMART_LOG_SIZE as usize;
+const OUTPUT_BUF_SIZE: usize =
+    DATA_DESCRIPTOR_HEADER + PROTOCOL_SPECIFIC_DATA_SIZE + SMART_LOG_SIZE as usize;
 
 // ---------- helpers ----------
 
@@ -163,7 +164,10 @@ pub fn nvme_smart_to_smart_data(log: &NvmeSmartLog) -> SmartData {
 fn to_wide(s: &str) -> Vec<u16> {
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
-    OsStr::new(s).encode_wide().chain(std::iter::once(0)).collect()
+    OsStr::new(s)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
 }
 
 /// Read the NVMe SMART/Health log from `\\.\PhysicalDriveN`.

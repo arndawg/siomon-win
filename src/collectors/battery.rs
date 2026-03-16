@@ -56,7 +56,7 @@ Get-CimInstance Win32_Battery | Select-Object Name,DeviceID,Manufacturer,Chemist
 
     let raw: Vec<WmiBatteryRow> = serde_json::from_str(&json_str).ok()?;
 
-    let devices: Vec<BatteryInfo> = raw.iter().filter_map(|r| wmi_row_to_battery(r)).collect();
+    let devices: Vec<BatteryInfo> = raw.iter().filter_map(wmi_row_to_battery).collect();
     Some(devices)
 }
 
@@ -95,12 +95,12 @@ fn wmi_row_to_battery(row: &WmiBatteryRow) -> Option<BatteryInfo> {
 
     let chemistry = row
         .chemistry
-        .map(|c| classify_chemistry_wmi(c))
+        .map(classify_chemistry_wmi)
         .unwrap_or(BatteryChemistry::Unknown("unknown".into()));
 
     let status = row
         .battery_status
-        .map(|s| classify_status_wmi(s))
+        .map(classify_status_wmi)
         .unwrap_or(BatteryStatus::Unknown);
 
     let capacity_percent = row.estimated_charge_remaining.map(|v| v.min(100) as u8);
@@ -114,9 +114,7 @@ fn wmi_row_to_battery(row: &WmiBatteryRow) -> Option<BatteryInfo> {
     let voltage_now_uv = row.design_voltage.map(|v| v * 1000);
 
     let wear_percent = match (row.full_charge_capacity, row.design_capacity) {
-        (Some(full), Some(design)) if design > 0 => {
-            Some(1.0 - (full as f64 / design as f64))
-        }
+        (Some(full), Some(design)) if design > 0 => Some(1.0 - (full as f64 / design as f64)),
         _ => None,
     };
 
@@ -165,7 +163,7 @@ fn classify_status_wmi(code: u32) -> BatteryStatus {
         1 | 4 | 5 => BatteryStatus::Discharging,
         2 => BatteryStatus::NotCharging,
         3 => BatteryStatus::Full,
-        6 | 7 | 8 | 9 => BatteryStatus::Charging,
+        6..=9 => BatteryStatus::Charging,
         _ => BatteryStatus::Unknown,
     }
 }

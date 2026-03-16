@@ -142,8 +142,7 @@ mod platform {
 
             let mut info: Vec<ProcessorPowerInformation> =
                 vec![unsafe { std::mem::zeroed() }; count];
-            let buf_size =
-                (count * std::mem::size_of::<ProcessorPowerInformation>()) as u32;
+            let buf_size = (count * std::mem::size_of::<ProcessorPowerInformation>()) as u32;
 
             let status = unsafe {
                 CallNtPowerInformation(

@@ -193,7 +193,9 @@ pub fn collect(no_nvidia: bool) -> Vec<GpuInfo> {
             if let Some(lib) = crate::platform::nvml::NvmlLibrary::try_load() {
                 let count = lib.device_count().unwrap_or(0);
                 for idx in 0..count {
-                    let name = lib.device_name(idx).unwrap_or_else(|_| "NVIDIA GPU".to_string());
+                    let name = lib
+                        .device_name(idx)
+                        .unwrap_or_else(|_| "NVIDIA GPU".to_string());
 
                     // PCI info
                     let (pci_bus_address, vendor_id, device_id, subsys_vendor, subsys_device) =
@@ -220,18 +222,17 @@ pub fn collect(no_nvidia: bool) -> Vec<GpuInfo> {
                     let vbios_version = lib.device_vbios_version(idx).ok();
                     let driver_version = lib.driver_version().ok();
 
-                    let pcie_link =
-                        match (lib.device_pcie_gen(idx), lib.device_pcie_width(idx)) {
-                            (Ok(pcie_gen), Ok(width)) => Some(PcieLinkInfo {
-                                current_gen: Some(pcie_gen as u8),
-                                current_width: Some(width as u8),
-                                max_gen: None,
-                                max_width: None,
-                                current_speed: None,
-                                max_speed: None,
-                            }),
-                            _ => None,
-                        };
+                    let pcie_link = match (lib.device_pcie_gen(idx), lib.device_pcie_width(idx)) {
+                        (Ok(pcie_gen), Ok(width)) => Some(PcieLinkInfo {
+                            current_gen: Some(pcie_gen as u8),
+                            current_width: Some(width as u8),
+                            max_gen: None,
+                            max_width: None,
+                            current_speed: None,
+                            max_speed: None,
+                        }),
+                        _ => None,
+                    };
 
                     let info = GpuInfo {
                         index: idx,
@@ -518,9 +519,7 @@ fn parse_connector(s: &str) -> Option<(String, u32)> {
 fn enumerate_display_outputs_win() -> Vec<(String, Vec<DisplayOutput>)> {
     use winapi::shared::minwindef::DWORD;
     use winapi::um::wingdi::{DEVMODEW, DISPLAY_DEVICEW};
-    use winapi::um::winuser::{
-        EnumDisplayDevicesW, EnumDisplaySettingsW, ENUM_CURRENT_SETTINGS,
-    };
+    use winapi::um::winuser::{ENUM_CURRENT_SETTINGS, EnumDisplayDevicesW, EnumDisplaySettingsW};
 
     let mut results = Vec::new();
     let mut adapter_idx: DWORD = 0;

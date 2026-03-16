@@ -157,7 +157,7 @@ $result | ConvertTo-Json -Compress
 
     let raw: Vec<WmiUsbRow> = serde_json::from_str(&json_str).ok()?;
 
-    let mut devices: Vec<UsbDevice> = raw.iter().filter_map(|r| wmi_row_to_usb(r)).collect();
+    let mut devices: Vec<UsbDevice> = raw.iter().filter_map(wmi_row_to_usb).collect();
     devices.sort_by(|a, b| {
         a.bus
             .cmp(&b.bus)
@@ -233,8 +233,8 @@ fn wmi_row_to_usb(row: &WmiUsbRow) -> Option<UsbDevice> {
     let idx = row.index.unwrap_or(0);
 
     Some(UsbDevice {
-        bus: 0,                                   // Not available from WMI
-        port_path: format!("{}", idx),             // Synthetic
+        bus: 0,                        // Not available from WMI
+        port_path: format!("{}", idx), // Synthetic
         devnum: idx as u16,
         vendor_id,
         product_id,
@@ -244,7 +244,7 @@ fn wmi_row_to_usb(row: &WmiUsbRow) -> Option<UsbDevice> {
         usb_version,
         device_class,
         speed,
-        max_power_ma: None,                        // Not available from WMI
+        max_power_ma: None, // Not available from WMI
         sysfs_id: format!("{}\\{}", prefix, parts.get(1).unwrap_or(&"")),
     })
 }
@@ -344,7 +344,10 @@ fn classify_speed_windows(
 fn extract_vid(s: &str) -> Option<u16> {
     let marker = "VID_";
     let start = s.find(marker)? + marker.len();
-    let hex: String = s[start..].chars().take_while(|c| c.is_ascii_hexdigit()).collect();
+    let hex: String = s[start..]
+        .chars()
+        .take_while(|c| c.is_ascii_hexdigit())
+        .collect();
     u16::from_str_radix(&hex, 16).ok()
 }
 
@@ -353,7 +356,10 @@ fn extract_vid(s: &str) -> Option<u16> {
 fn extract_pid(s: &str) -> Option<u16> {
     let marker = "PID_";
     let start = s.find(marker)? + marker.len();
-    let hex: String = s[start..].chars().take_while(|c| c.is_ascii_hexdigit()).collect();
+    let hex: String = s[start..]
+        .chars()
+        .take_while(|c| c.is_ascii_hexdigit())
+        .collect();
     u16::from_str_radix(&hex, 16).ok()
 }
 
@@ -405,8 +411,14 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn test_extract_vid_pid() {
-        assert_eq!(extract_vid(r"USB\VID_046D&PID_C52B\5&2F4E3A01&0&2"), Some(0x046D));
-        assert_eq!(extract_pid(r"USB\VID_046D&PID_C52B\5&2F4E3A01&0&2"), Some(0xC52B));
+        assert_eq!(
+            extract_vid(r"USB\VID_046D&PID_C52B\5&2F4E3A01&0&2"),
+            Some(0x046D)
+        );
+        assert_eq!(
+            extract_pid(r"USB\VID_046D&PID_C52B\5&2F4E3A01&0&2"),
+            Some(0xC52B)
+        );
     }
 
     #[cfg(windows)]

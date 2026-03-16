@@ -141,9 +141,11 @@ $result | ConvertTo-Json -Compress
 
     let raw: Vec<WmiAudioRow> = serde_json::from_str(&json_str).ok()?;
 
-    let mut devices: Vec<AudioDevice> = raw.iter().enumerate().map(|(i, r)| {
-        wmi_row_to_audio(r, i as u32)
-    }).collect();
+    let mut devices: Vec<AudioDevice> = raw
+        .iter()
+        .enumerate()
+        .map(|(i, r)| wmi_row_to_audio(r, i as u32))
+        .collect();
     devices.sort_by_key(|d| d.card_index);
     Some(devices)
 }
@@ -174,17 +176,29 @@ fn wmi_row_to_audio(row: &WmiAudioRow, idx: u32) -> AudioDevice {
     } else if device_id.starts_with("PCI") {
         // Non-HDA PCI audio (AC97, etc.)
         AudioBusType::Ac97
-    } else if device_id.contains("ROOT") || device_id.contains("VIRTUAL") || device_id.contains("SW") {
+    } else if device_id.contains("ROOT")
+        || device_id.contains("VIRTUAL")
+        || device_id.contains("SW")
+    {
         AudioBusType::Virtual
     } else {
-        AudioBusType::Unknown(device_id.split('\\').next().unwrap_or("unknown").to_string())
+        AudioBusType::Unknown(
+            device_id
+                .split('\\')
+                .next()
+                .unwrap_or("unknown")
+                .to_string(),
+        )
     };
 
     // Extract PCI address from DeviceID if it contains PCI-like info
     let pci_bus_address = extract_pci_address(device_id);
 
     // Use manufacturer as driver hint
-    let driver = row.manufacturer.clone().unwrap_or_else(|| "Unknown".to_string());
+    let driver = row
+        .manufacturer
+        .clone()
+        .unwrap_or_else(|| "Unknown".to_string());
 
     let codec = resolve_codec_from_device_id(device_id);
 
@@ -267,7 +281,11 @@ fn resolve_codec_from_device_id(device_id: &str) -> Option<String> {
         _ => {
             // Unknown vendor – return raw VEN:DEV so the user still gets something
             if let Some(dev_hex) = dev {
-                Some(format!("HD Audio [{}:{}]", ven_upper, dev_hex.to_uppercase()))
+                Some(format!(
+                    "HD Audio [{}:{}]",
+                    ven_upper,
+                    dev_hex.to_uppercase()
+                ))
             } else {
                 Some(format!("HD Audio [{}]", ven_upper))
             }
@@ -283,11 +301,7 @@ fn extract_hex_field(device_id: &str, marker: &str) -> Option<String> {
         .chars()
         .take_while(|c| c.is_ascii_hexdigit())
         .collect();
-    if hex.is_empty() {
-        None
-    } else {
-        Some(hex)
-    }
+    if hex.is_empty() { None } else { Some(hex) }
 }
 
 // ── Shared ─────────────────────────────────────────────────────────────────

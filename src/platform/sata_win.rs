@@ -223,7 +223,10 @@ pub fn sata_smart_to_smart_data(ata: &AtaSmartData) -> SmartData {
 fn to_wide(s: &str) -> Vec<u16> {
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
-    OsStr::new(s).encode_wide().chain(std::iter::once(0)).collect()
+    OsStr::new(s)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
 }
 
 /// Read SATA SMART data from `\\.\PhysicalDriveN`.

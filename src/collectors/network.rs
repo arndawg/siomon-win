@@ -102,10 +102,10 @@ fn win_collect_adapters(physical_only: bool) -> Vec<NetworkAdapter> {
             // IfType -> NetworkInterfaceType
             let if_type = adapter.IfType;
             let interface_type = match if_type {
-                6 => NetworkInterfaceType::Ethernet,    // IF_TYPE_ETHERNET_CSMACD
-                71 => NetworkInterfaceType::Wifi,        // IF_TYPE_IEEE80211
-                24 => NetworkInterfaceType::Loopback,    // IF_TYPE_SOFTWARE_LOOPBACK
-                131 => NetworkInterfaceType::Tun,        // IF_TYPE_TUNNEL
+                6 => NetworkInterfaceType::Ethernet,  // IF_TYPE_ETHERNET_CSMACD
+                71 => NetworkInterfaceType::Wifi,     // IF_TYPE_IEEE80211
+                24 => NetworkInterfaceType::Loopback, // IF_TYPE_SOFTWARE_LOOPBACK
+                131 => NetworkInterfaceType::Tun,     // IF_TYPE_TUNNEL
                 _ => NetworkInterfaceType::Unknown(if_type),
             };
 
@@ -497,4 +497,3 @@ fn collect_ip_addresses(name: &str) -> Vec<IpAddress> {
 
     addrs
 }
-
