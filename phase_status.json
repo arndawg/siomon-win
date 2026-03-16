@@ -48,20 +48,33 @@
     },
     "BETA": {
       "title": "User-Mode Parity (no driver required)",
-      "status": "planned",
+      "status": "completed",
+      "started": "2026-03-16",
+      "completed": "2026-03-16",
       "plan": "PHASE_BETA.md",
-      "exit_report": null,
-      "summary": "Close all gaps achievable with user-mode Windows APIs: battery, network details, motherboard fields, USB details, audio codec, display outputs, WHEA errors, IPMI",
+      "exit_report": "PHASE_BETA_EXIT_REPORT.md",
+      "summary": "Closed 8 gaps with user-mode Windows APIs: battery (WMI), network details (GetAdaptersAddresses), motherboard fields (wmic+registry), USB speed/class (CompatibleID), audio codec (HDAUDIO DeviceID), display outputs (EnumDisplayDevices), WHEA errors (wevtutil), IPMI (ipmitool CLI)",
+      "commits": [
+        "bfcad5a",
+        "f89cf60",
+        "4830f21"
+      ],
+      "stats": {
+        "files_changed": 11,
+        "insertions": 1706,
+        "deletions": 63
+      },
       "work_items": {
-        "B1": { "title": "Battery information", "gap": 4, "effort": "low", "status": "pending" },
-        "B2": { "title": "Network interface details (MAC, IP, speed)", "gap": 5, "effort": "medium", "status": "pending" },
-        "B3": { "title": "Motherboard detail fields", "gap": 11, "effort": "low", "status": "pending" },
-        "B4": { "title": "USB device details (speed, class)", "gap": 12, "effort": "medium", "status": "pending" },
-        "B5": { "title": "Audio codec name", "gap": 13, "effort": "low", "status": "pending" },
-        "B6": { "title": "Display output enumeration", "gap": 6, "effort": "medium", "status": "pending" },
-        "B7": { "title": "WHEA error monitoring (MCE/EDAC/AER)", "gap": 8, "effort": "medium", "status": "pending" },
-        "B8": { "title": "IPMI BMC sensors", "gap": 9, "effort": "medium", "status": "pending" }
-      }
+        "B1": { "title": "Battery information", "gap": 4, "effort": "low", "status": "completed" },
+        "B2": { "title": "Network interface details (MAC, IP, speed)", "gap": 5, "effort": "medium", "status": "completed" },
+        "B3": { "title": "Motherboard detail fields", "gap": 11, "effort": "low", "status": "completed" },
+        "B4": { "title": "USB device details (speed, class)", "gap": 12, "effort": "medium", "status": "completed" },
+        "B5": { "title": "Audio codec name", "gap": 13, "effort": "low", "status": "completed" },
+        "B6": { "title": "Display output enumeration", "gap": 6, "effort": "medium", "status": "completed" },
+        "B7": { "title": "WHEA error monitoring (MCE/EDAC/AER)", "gap": 8, "effort": "medium", "status": "completed" },
+        "B8": { "title": "IPMI BMC sensors", "gap": 9, "effort": "medium", "status": "completed" }
+      },
+      "gaps_remaining": 7
     },
     "GAMMA": {
       "title": "Driver-Gated Hardware Sensors",
