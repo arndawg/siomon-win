@@ -1,0 +1,27 @@
+PackageIdentifier: arndawg.sio
+PackageVersion: 0.1.3-win.1
+PackageLocale: en-US
+Publisher: arndawg
+PublisherUrl: https://github.com/arndawg
+PackageName: sio
+PackageUrl: https://github.com/arndawg/siomon-win
+License: MIT
+LicenseUrl: https://github.com/arndawg/siomon-win/blob/windows-port/LICENSE
+ShortDescription: Hardware information and sensor monitoring tool
+Description: |-
+  sio is a cross-platform hardware information and real-time sensor monitoring
+  tool. It provides detailed CPU, memory, storage, GPU, network, and motherboard
+  information with an interactive TUI dashboard for live sensor monitoring
+  including temperatures, fan speeds, voltages, power, and utilization metrics.
+Tags:
+  - hardware
+  - sensors
+  - monitoring
+  - system-info
+  - tui
+  - cli
+  - cpu
+  - gpu
+  - temperature
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0
