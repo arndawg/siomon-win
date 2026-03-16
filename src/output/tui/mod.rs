@@ -883,10 +883,7 @@ fn draw(
             .split(size);
 
         // Top bar
-        #[cfg(unix)]
-        let is_root = unsafe { libc::geteuid() } == 0;
-        #[cfg(not(unix))]
-        let is_root = crate::output::text::is_windows_admin();
+        let is_root = crate::platform::is_elevated();
         let priv_hint = if is_root {
             ""
         } else {

@@ -327,8 +327,11 @@ fn discover_all_sources(
     );
     sources.push(Box::new(hsmp_src));
 
-    // Super I/O and SMBus direct register access via WinRing0
-    if direct_io && crate::platform::port_io_win::PortIo::is_available() {
+    // Super I/O and SMBus direct register access via WinRing0 (requires admin)
+    if direct_io
+        && crate::platform::is_elevated()
+        && crate::platform::port_io_win::PortIo::is_available()
+    {
         let chips = superio::chip_detect::detect_all();
         let mut nct_count = 0;
         let mut ite_count = 0;

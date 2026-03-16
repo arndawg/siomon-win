@@ -3,12 +3,10 @@ use crate::model::system::SystemInfo;
 pub fn print_summary(info: &SystemInfo) {
     println!("  sio - System Information");
     println!("  ========================");
-    #[cfg(unix)]
-    if unsafe { libc::geteuid() } != 0 {
+    if !crate::platform::is_elevated() {
+        #[cfg(unix)]
         println!("  (run as root for SMART data, DMI serials, and MSR access)");
-    }
-    #[cfg(windows)]
-    if !is_windows_admin() {
+        #[cfg(not(unix))]
         println!("  (run as Administrator for SMART data)");
     }
     println!();
@@ -145,11 +143,14 @@ pub fn print_summary(info: &SystemInfo) {
     if let Some(ref me) = mb.me_version {
         println!("  ME Firmware:     {me}");
     }
-    // Show detected Super I/O chip if direct I/O is available
-    #[cfg(unix)]
-    let can_probe_sio = unsafe { libc::geteuid() } == 0;
-    #[cfg(windows)]
-    let can_probe_sio = crate::platform::port_io_win::PortIo::is_available();
+    // Show detected Super I/O chip if running with elevated privileges
+    let can_probe_sio = crate::platform::is_elevated()
+        && {
+            #[cfg(windows)]
+            { crate::platform::port_io_win::PortIo::is_available() }
+            #[cfg(unix)]
+            { true }
+        };
     if can_probe_sio {
         let chips = crate::sensors::superio::chip_detect::detect_all();
         for chip in &chips {
@@ -732,37 +733,6 @@ fn format_bytes_u128(bytes: u128) -> String {
     }
 }
 
-/// Check whether the current process is running with Administrator (elevated)
-/// privileges via the Windows token elevation API.
-#[cfg(windows)]
-pub fn is_windows_admin() -> bool {
-    use std::mem;
-    use std::ptr;
-    use winapi::um::handleapi::CloseHandle;
-    use winapi::um::processthreadsapi::{GetCurrentProcess, OpenProcessToken};
-    use winapi::um::securitybaseapi::GetTokenInformation;
-    use winapi::um::winnt::{TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
-
-    unsafe {
-        let mut token = ptr::null_mut();
-        if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) == 0 {
-            return false;
-        }
-
-        let mut elevation: TOKEN_ELEVATION = mem::zeroed();
-        let mut returned: u32 = 0;
-        let ok = GetTokenInformation(
-            token,
-            TokenElevation,
-            &mut elevation as *mut TOKEN_ELEVATION as *mut _,
-            mem::size_of::<TOKEN_ELEVATION>() as u32,
-            &mut returned,
-        );
-        CloseHandle(token);
-
-        ok != 0 && elevation.TokenIsElevated != 0
-    }
-}
 
 #[cfg(test)]
 mod tests {

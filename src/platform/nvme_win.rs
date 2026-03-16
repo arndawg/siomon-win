@@ -13,7 +13,7 @@ use winapi::shared::minwindef::{DWORD, FALSE};
 use winapi::um::fileapi::{CreateFileW, OPEN_EXISTING};
 use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
 use winapi::um::ioapiset::DeviceIoControl;
-use winapi::um::winnt::{FILE_SHARE_READ, FILE_SHARE_WRITE, GENERIC_READ};
+use winapi::um::winnt::{FILE_SHARE_READ, FILE_SHARE_WRITE, GENERIC_READ, GENERIC_WRITE};
 
 // ---------- NVMe SMART log (NVMe spec, 512 bytes) ----------
 
@@ -179,9 +179,11 @@ pub fn read_nvme_smart(drive_number: u32) -> Option<NvmeSmartLog> {
     let wide_path = to_wide(&path);
 
     unsafe {
+        // Open with GENERIC_READ | GENERIC_WRITE — some NVMe drivers
+        // require write access for the storage protocol IOCTL.
         let handle = CreateFileW(
             wide_path.as_ptr(),
-            GENERIC_READ,
+            GENERIC_READ | GENERIC_WRITE,
             FILE_SHARE_READ | FILE_SHARE_WRITE,
             ptr::null_mut(),
             OPEN_EXISTING,
@@ -230,7 +232,12 @@ pub fn read_nvme_smart(drive_number: u32) -> Option<NvmeSmartLog> {
         CloseHandle(handle);
 
         if ok == FALSE {
-            log::debug!("IOCTL_STORAGE_QUERY_PROPERTY failed on {}", path);
+            let err = std::io::Error::last_os_error();
+            log::debug!(
+                "IOCTL_STORAGE_QUERY_PROPERTY failed on {}: {}",
+                path,
+                err
+            );
             return None;
         }
 

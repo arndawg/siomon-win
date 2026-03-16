@@ -86,10 +86,14 @@ pub fn collect() -> Vec<StorageDevice> {
         .collect();
 
     // Try to read SMART data from physical drives and attach to matching
-    // logical drives.  We probe PhysicalDrive0..15 and attempt NVMe SMART
-    // first (most modern drives), then SATA SMART as fallback.
+    // logical drives.  Requires admin — skip entirely when not elevated to
+    // avoid 16 wasted ACCESS_DENIED failures from CreateFile.
     #[cfg(windows)]
-    attach_smart_data(&mut devices);
+    if crate::platform::is_elevated() {
+        attach_smart_data(&mut devices);
+    } else {
+        log::debug!("Storage: skipping SMART probe (not elevated)");
+    }
 
     devices
 }
@@ -135,20 +139,65 @@ fn attach_smart_data(devices: &mut [StorageDevice]) {
             .collect()
     }
 
+    let mut consecutive_missing = 0u32;
     for drive_num in 0u32..16 {
+        // Stop probing after 2 consecutive "drive not found" results
+        let path = format!("\\\\.\\PhysicalDrive{}", drive_num);
+        let wide = to_wide(&path);
+        let exists = unsafe {
+            let h = winapi::um::fileapi::CreateFileW(
+                wide.as_ptr(),
+                GENERIC_READ,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                ptr::null_mut(),
+                winapi::um::fileapi::OPEN_EXISTING,
+                0,
+                ptr::null_mut(),
+            );
+            if h == INVALID_HANDLE_VALUE {
+                false
+            } else {
+                CloseHandle(h);
+                true
+            }
+        };
+        if !exists {
+            consecutive_missing += 1;
+            if consecutive_missing >= 2 {
+                break;
+            }
+            continue;
+        }
+        consecutive_missing = 0;
+
         // Try NVMe SMART first
-        if let Some(log) = nvme_win::read_nvme_smart(drive_num) {
-            let smart = nvme_win::nvme_smart_to_smart_data(&log);
+        if let Some(smart_log) = nvme_win::read_nvme_smart(drive_num) {
+            let smart = nvme_win::nvme_smart_to_smart_data(&smart_log);
+            log::debug!(
+                "Storage: PhysicalDrive{} NVMe SMART OK (temp={}C, hours={:?})",
+                drive_num,
+                smart.temperature_celsius,
+                smart.power_on_hours
+            );
             if let Some(dev) = match_physical_to_logical(
                 devices,
                 drive_num,
                 to_wide,
                 IOCTL_DISK_GET_DRIVE_GEOMETRY_EX,
             ) {
+                log::debug!(
+                    "Storage: attached NVMe SMART to {}",
+                    dev.device_name
+                );
                 dev.smart = Some(smart);
                 if dev.interface == StorageInterface::Unknown("unknown".to_string()) {
                     dev.interface = StorageInterface::NVMe;
                 }
+            } else {
+                log::debug!(
+                    "Storage: PhysicalDrive{} NVMe SMART read OK but no matching logical drive",
+                    drive_num
+                );
             }
             continue;
         }
@@ -156,16 +205,31 @@ fn attach_smart_data(devices: &mut [StorageDevice]) {
         // Try SATA SMART
         if let Some(ata) = sata_win::read_sata_smart(drive_num) {
             let smart = sata_win::sata_smart_to_smart_data(&ata);
+            log::debug!(
+                "Storage: PhysicalDrive{} SATA SMART OK (temp={}C, hours={:?})",
+                drive_num,
+                smart.temperature_celsius,
+                smart.power_on_hours
+            );
             if let Some(dev) = match_physical_to_logical(
                 devices,
                 drive_num,
                 to_wide,
                 IOCTL_DISK_GET_DRIVE_GEOMETRY_EX,
             ) {
+                log::debug!(
+                    "Storage: attached SATA SMART to {}",
+                    dev.device_name
+                );
                 dev.smart = Some(smart);
                 if dev.interface == StorageInterface::Unknown("unknown".to_string()) {
                     dev.interface = StorageInterface::SATA;
                 }
+            } else {
+                log::debug!(
+                    "Storage: PhysicalDrive{} SATA SMART read OK but no matching logical drive",
+                    drive_num
+                );
             }
         }
     }
@@ -181,8 +245,13 @@ fn attach_smart_data(devices: &mut [StorageDevice]) {
     ) -> Option<&mut StorageDevice> {
         // Read the physical drive capacity via IOCTL_DISK_GET_DRIVE_GEOMETRY_EX.
         let phys_capacity = get_physical_drive_size(drive_num, to_wide, ioctl_geom)?;
+        log::debug!(
+            "Storage: PhysicalDrive{} raw capacity = {} bytes",
+            drive_num,
+            phys_capacity
+        );
 
-        // Find the device whose capacity is closest (and within 10 %) that
+        // Find the device whose capacity is closest (and within 20%) that
         // doesn't already have SMART data.
         let mut best_idx: Option<usize> = None;
         let mut best_diff: u64 = u64::MAX;
@@ -191,18 +260,36 @@ fn attach_smart_data(devices: &mut [StorageDevice]) {
                 continue;
             }
             let cap = dev.capacity_bytes;
-            // sysinfo reports usable filesystem size which is smaller than raw
-            // physical size, so allow physical >= logical with up to 15 %
-            // difference.
             let diff = phys_capacity.abs_diff(cap);
-            let threshold = phys_capacity / 6; // ~16 %
+            let threshold = phys_capacity / 5; // ~20 %
             if diff < threshold && diff < best_diff {
                 best_diff = diff;
                 best_idx = Some(i);
             }
         }
 
-        best_idx.map(|i| &mut devices[i])
+        if best_idx.is_some() {
+            return best_idx.map(|i| &mut devices[i]);
+        }
+
+        // Fallback: for spanned/RAID volumes the logical size exceeds any
+        // single physical drive.  Attach SMART to the first device whose
+        // logical capacity is LARGER than the physical drive (component of
+        // a larger volume) and that doesn't already have SMART data.
+        for (i, dev) in devices.iter().enumerate() {
+            if dev.smart.is_some() {
+                continue;
+            }
+            if dev.capacity_bytes > phys_capacity {
+                log::debug!(
+                    "Storage: fallback match — PhysicalDrive{} ({}B) is likely a component of {} ({}B)",
+                    drive_num, phys_capacity, dev.device_name, dev.capacity_bytes
+                );
+                return Some(&mut devices[i]);
+            }
+        }
+
+        None
     }
 
     /// Query the raw size (in bytes) of `\\.\PhysicalDriveN` via
