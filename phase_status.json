@@ -19,39 +19,43 @@
       "title": "Driver-Gated Hardware Sensors",
       "status": "completed",
       "plan": "archive/PHASE_GAMMA.md",
-      "exit_report": "archive/PHASE_GAMMA_EXIT_REPORT.md",
-      "summary": "WinRing0 integration, SuperIO un-gating, RAPL via MSR, AMD HSMP via SMN, PCIe link, AMD ADL GPU, SMBus VRM + DDR5 DIMM temps. All 14 original gaps addressed."
+      "exit_report": "archive/PHASE_GAMMA_EXIT_REPORT.md"
     },
     "DELTA": {
       "title": "Polish and Upstream Preparation",
-      "status": "planned",
+      "status": "completed",
+      "started": "2026-03-16",
+      "completed": "2026-03-16",
       "plan": "PHASE_DELTA.md",
-      "exit_report": null,
-      "summary": "SMBIOS DIMM enrichment, CPU microcode, network type/driver, BIOS date format, chipset name, ACPI thermals, upstream PR prep, WinRing0 live validation",
+      "exit_report": "PHASE_DELTA_EXIT_REPORT.md",
+      "summary": "SMBIOS parsing via GetSystemFirmwareTable, DIMM details (4x Kingston DDR4), CPU microcode (0x7D103008), BIOS date formatting, chipset from PCI 00:00.0, network type/driver fix, ACPI thermal sensor, zero-warning build",
+      "commits": ["63c803a", "ccbb408", "9d74ef4"],
+      "stats": { "files_changed": 11, "insertions": 655, "deletions": 26 },
       "work_items": {
-        "D1": { "title": "SMBIOS table parsing via GetSystemFirmwareTable", "effort": "medium", "status": "pending" },
-        "D2": { "title": "Memory DIMM details from SMBIOS Type 17", "effort": "medium", "status": "pending", "depends_on": "D1" },
-        "D3": { "title": "CPU microcode version from registry", "effort": "low", "status": "pending" },
-        "D4": { "title": "Network interface type and driver name", "effort": "low", "status": "pending" },
-        "D5": { "title": "ACPI thermal zones as supplementary sensor", "effort": "medium", "status": "pending" },
-        "D6": { "title": "BIOS date formatting", "effort": "low", "status": "pending" },
-        "D7": { "title": "Motherboard chipset name from PCI 00:00.0", "effort": "low", "status": "pending" },
-        "D8": { "title": "Upstream PR preparation (rebase, CI, README)", "effort": "medium", "status": "pending" },
-        "D9": { "title": "WinRing0 live hardware validation", "effort": "high", "status": "pending" }
+        "D1": { "title": "SMBIOS table parsing via GetSystemFirmwareTable", "status": "completed" },
+        "D2": { "title": "Memory DIMM details from SMBIOS Type 17", "status": "completed" },
+        "D3": { "title": "CPU microcode version from registry", "status": "completed" },
+        "D4": { "title": "Network interface type and driver name", "status": "completed" },
+        "D5": { "title": "ACPI thermal zones sensor", "status": "completed" },
+        "D6": { "title": "BIOS date formatting", "status": "completed" },
+        "D7": { "title": "Motherboard chipset from PCI 00:00.0", "status": "completed" },
+        "D8": { "title": "Zero-warning Windows build", "status": "completed" },
+        "D9": { "title": "WinRing0 live hardware validation", "status": "deferred", "note": "Requires WinRing0 installation on multiple test platforms" }
       }
     },
     "EPSILON": {
-      "title": "Distribution and Platform Expansion",
+      "title": "Distribution and Upstream Merge",
       "status": "future",
       "plan": null,
       "exit_report": null,
-      "summary": "Cross-compile CI, ARM64 Windows, MSI installer/winget, unified sensor abstraction, Windows config paths",
+      "summary": "WinRing0 live validation, upstream PR (rebase/squash/CI/README), cross-compile CI, ARM64 Windows, MSI installer/winget, Windows config paths",
       "work_items": {
-        "E1": { "title": "Cross-compile CI (build Windows from Linux runner)", "effort": "medium", "status": "pending" },
-        "E2": { "title": "ARM64 Windows port (aarch64-pc-windows-msvc)", "effort": "high", "status": "pending" },
-        "E3": { "title": "MSI installer and winget manifest", "effort": "medium", "status": "pending" },
-        "E4": { "title": "Unified hwmon abstraction layer", "effort": "high", "status": "pending" },
-        "E5": { "title": "Windows-specific config paths (%APPDATA%)", "effort": "low", "status": "pending" }
+        "E1": { "title": "WinRing0 live hardware validation on multiple platforms", "effort": "high", "status": "pending" },
+        "E2": { "title": "Upstream PR preparation (rebase, squash, CI, README)", "effort": "medium", "status": "pending" },
+        "E3": { "title": "Cross-compile CI (build Windows from Linux runner)", "effort": "medium", "status": "pending" },
+        "E4": { "title": "ARM64 Windows port (aarch64-pc-windows-msvc)", "effort": "high", "status": "pending" },
+        "E5": { "title": "MSI installer and winget manifest", "effort": "medium", "status": "pending" },
+        "E6": { "title": "Windows-specific config paths (%APPDATA%)", "effort": "low", "status": "pending" }
       }
     }
   }
