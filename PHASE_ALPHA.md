@@ -595,3 +595,31 @@ Every Windows sensor implementation must be tested on:
 | Intel LGA1851 desktop | Core Ultra 200S | Z890 | NCT67xx | NVIDIA | Latest Intel platform |
 | Laptop (Intel) | Any | PCH | N/A | iGPU + dGPU | Battery, thermal zones, no SuperIO |
 | Laptop (AMD) | Zen 3/4 | FCH | N/A | iGPU + dGPU | HSMP unavailable on mobile |
+
+---
+
+## Implementation Status (2026-03-16)
+
+### Completed
+
+| Item | Section | Commit | Verified |
+|------|---------|--------|----------|
+| NVIDIA NVML on Windows | 10 | `ac67937` | GPU temp 37C, fan 24%, clocks, utilization, VRAM on GTX 1650 |
+| Per-core CPU frequency | 4 | `ac67937` | 64 cores at 3501 MHz via CallNtPowerInformation |
+| NVMe SMART data | 8 | `2837f42` | nvme_win.rs via IOCTL_STORAGE_QUERY_PROPERTY (requires admin) |
+| SATA SMART data | 9 | `2837f42` | sata_win.rs via SMART_RCV_DRIVE_DATA (requires admin) |
+| PCI device enumeration | 14 | `78d2aa6` | 87 PCI devices with pci_ids name resolution |
+| USB device enumeration | 14 | `78d2aa6` | 10 USB devices with VID/PID |
+| Audio device enumeration | 14 | `78d2aa6` | 2 audio devices (Realtek USB, NVIDIA HD Audio) |
+
+### Remaining (Tier 2-3, requires WinRing0 driver or external dependencies)
+
+| Item | Section | Blocker |
+|------|---------|---------|
+| SuperIO temps/fans/voltages | 1, 2 | Requires WinRing0 kernel driver for port I/O |
+| RAPL power metering | 3 | Requires WinRing0 for MSR access |
+| AMD HSMP telemetry | 5 | Requires WinRing0 + AMD platform-specific testing |
+| IPMI BMC sensors | 6 | Requires server board with ipmidrv.sys |
+| I2C/PMBus VRM monitoring | 7 | Requires SMBus host controller implementation |
+| AMD ADL GPU sensors | 10 | Requires AMD GPU + ADL SDK integration |
+| WHEA/MCE error tracking | 11, 12, 13 | Requires Windows Event Log API integration |
