@@ -1,4 +1,6 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+#[cfg(unix)]
+use std::collections::{BTreeMap, BTreeSet};
+use std::collections::HashMap;
 use std::path::Path;
 
 use crate::db::cpu_codenames;
@@ -6,8 +8,10 @@ use crate::error::Result;
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
 use crate::model::cpu::CacheLevel;
 use crate::model::cpu::{
-    CpuCache, CpuFeatures, CpuInfo, CpuTopology, CpuVendor, CpuVulnerability, NumaNode,
+    CpuCache, CpuFeatures, CpuInfo, CpuTopology, CpuVendor, CpuVulnerability,
 };
+#[cfg(unix)]
+use crate::model::cpu::NumaNode;
 use crate::platform::{procfs, sysfs};
 
 /// Collect CPU information, returning one `CpuInfo` per physical package.
@@ -596,6 +600,7 @@ fn parse_numa_meminfo(path: &Path) -> Option<u64> {
 }
 
 /// Count entries in a CPU list string like "0-3,5,7" or "0,2".
+#[cfg(unix)]
 fn count_cpulist_entries(list: &str) -> u32 {
     let mut count = 0u32;
     for part in list.split(',') {
