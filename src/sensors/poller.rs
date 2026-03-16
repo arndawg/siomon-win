@@ -7,9 +7,9 @@ use crate::model::sensor::{SensorId, SensorReading};
 use crate::sensors::SensorSource;
 #[cfg(unix)]
 use crate::sensors::{
-    cpu_freq, gpu_sensors, hwmon, rapl, superio,
+    hwmon, rapl, superio,
 };
-use crate::sensors::{cpu_util, disk_activity, network_stats};
+use crate::sensors::{cpu_freq, cpu_util, disk_activity, gpu_sensors, network_stats};
 
 pub type SensorState = Arc<RwLock<HashMap<SensorId, SensorReading>>>;
 
@@ -295,14 +295,16 @@ fn discover_all_sources(
 
 #[cfg(not(unix))]
 fn discover_all_sources(
-    _no_nvidia: bool,
+    no_nvidia: bool,
     _direct_io: bool,
     _label_overrides: &HashMap<String, String>,
 ) -> Vec<Box<dyn SensorSource>> {
     let mut sources: Vec<Box<dyn SensorSource>> = Vec::new();
+    sources.push(Box::new(cpu_freq::CpuFreqSource::discover()));
     sources.push(Box::new(cpu_util::CpuUtilSource::discover()));
     sources.push(Box::new(network_stats::NetworkStatsSource::discover()));
     sources.push(Box::new(disk_activity::DiskActivitySource::discover()));
+    sources.push(Box::new(gpu_sensors::GpuSensorSource::discover(no_nvidia)));
     sources
 }
 

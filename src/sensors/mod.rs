@@ -1,13 +1,11 @@
 #[cfg(unix)]
 pub mod aer;
 pub mod alerts;
-#[cfg(unix)]
 pub mod cpu_freq;
 pub mod cpu_util;
 pub mod disk_activity;
 #[cfg(unix)]
 pub mod edac;
-#[cfg(unix)]
 pub mod gpu_sensors;
 #[cfg(unix)]
 pub mod hsmp;
