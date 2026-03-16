@@ -51,7 +51,9 @@ pub struct NvmeSmartLog {
 const IOCTL_STORAGE_QUERY_PROPERTY: DWORD = 0x002D1400;
 
 /// `StorageDeviceProtocolSpecificProperty` (property ID 50).
-const STORAGE_PROPERTY_ID_PROTOCOL_SPECIFIC: u32 = 50;
+const PROPERTY_ID_DEVICE: u32 = 50;
+/// `StorageAdapterProtocolSpecificProperty` (property ID 49).
+const PROPERTY_ID_ADAPTER: u32 = 49;
 
 /// `ProtocolTypeNvme` = 3.
 const STORAGE_PROTOCOL_TYPE_NVME: u32 = 3;
@@ -65,8 +67,10 @@ const NVME_LOG_PAGE_SMART: u32 = 2;
 /// Size of the SMART log in bytes.
 const SMART_LOG_SIZE: u32 = 512;
 
-/// `STORAGE_PROTOCOL_SPECIFIC_DATA` — describes the NVMe protocol request
-/// embedded inside `STORAGE_PROPERTY_QUERY.AdditionalParameters`.
+/// `STORAGE_PROTOCOL_SPECIFIC_DATA` — 40-byte struct matching the Windows SDK
+/// definition exactly (7 named fields + Reserved[3]).
+///
+/// Using the wrong size causes ERROR_INVALID_FUNCTION on some NVMe drivers.
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct StorageProtocolSpecificData {
@@ -77,10 +81,7 @@ struct StorageProtocolSpecificData {
     protocol_data_offset: u32,
     protocol_data_length: u32,
     fixed_protocol_return_data: u32,
-    protocol_data_request_sub_value2: u32,
-    protocol_data_request_sub_value3: u32,
-    protocol_data_request_sub_value4: u32,
-    protocol_data_request_sub_value5: u32,
+    reserved: [u32; 3],
 }
 
 /// Combined query header + protocol-specific data.
@@ -196,74 +197,92 @@ pub fn read_nvme_smart(drive_number: u32) -> Option<NvmeSmartLog> {
             return None;
         }
 
-        // Build the query
-        let query = StoragePropertyQuery {
-            property_id: STORAGE_PROPERTY_ID_PROTOCOL_SPECIFIC,
-            query_type: 0, // PropertyStandardQuery
-            protocol_specific: StorageProtocolSpecificData {
-                protocol_type: STORAGE_PROTOCOL_TYPE_NVME,
-                data_type: NVME_DATA_TYPE_LOG_PAGE,
-                protocol_data_request_value: NVME_LOG_PAGE_SMART,
-                protocol_data_request_sub_value: 0,
-                protocol_data_offset: mem::size_of::<StorageProtocolSpecificData>() as u32,
-                protocol_data_length: SMART_LOG_SIZE,
-                fixed_protocol_return_data: 0,
-                protocol_data_request_sub_value2: 0,
-                protocol_data_request_sub_value3: 0,
-                protocol_data_request_sub_value4: 0,
-                protocol_data_request_sub_value5: 0,
-            },
-        };
-
-        let mut output_buf = vec![0u8; OUTPUT_BUF_SIZE];
-        let mut bytes_returned: DWORD = 0;
-
-        let ok = DeviceIoControl(
-            handle,
-            IOCTL_STORAGE_QUERY_PROPERTY,
-            &query as *const StoragePropertyQuery as *mut _,
-            mem::size_of::<StoragePropertyQuery>() as DWORD,
-            output_buf.as_mut_ptr() as *mut _,
-            OUTPUT_BUF_SIZE as DWORD,
-            &mut bytes_returned,
-            ptr::null_mut(),
-        );
+        // Try device-level query first (PropertyId 50), then adapter-level (49).
+        // Some NVMe drivers only support one or the other.
+        let result = try_smart_query(handle, PROPERTY_ID_DEVICE, &path)
+            .or_else(|| try_smart_query(handle, PROPERTY_ID_ADAPTER, &path));
 
         CloseHandle(handle);
-
-        if ok == FALSE {
-            let err = std::io::Error::last_os_error();
-            log::debug!(
-                "IOCTL_STORAGE_QUERY_PROPERTY failed on {}: {}",
-                path,
-                err
-            );
-            return None;
-        }
-
-        if (bytes_returned as usize) < OUTPUT_BUF_SIZE {
-            log::debug!(
-                "Short read from {} ({} bytes, expected {})",
-                path,
-                bytes_returned,
-                OUTPUT_BUF_SIZE
-            );
-            return None;
-        }
-
-        // The SMART log payload starts after the data descriptor header +
-        // protocol-specific data structure.
-        let log_offset = DATA_DESCRIPTOR_HEADER + PROTOCOL_SPECIFIC_DATA_SIZE;
-        let log_bytes = &output_buf[log_offset..log_offset + SMART_LOG_SIZE as usize];
-
-        // Copy into the NvmeSmartLog struct
-        let mut log: NvmeSmartLog = mem::zeroed();
-        ptr::copy_nonoverlapping(
-            log_bytes.as_ptr(),
-            &mut log as *mut NvmeSmartLog as *mut u8,
-            SMART_LOG_SIZE as usize,
-        );
-
-        Some(log)
+        result
     }
+}
+
+/// Send IOCTL_STORAGE_QUERY_PROPERTY with the given property ID and parse the
+/// SMART log from the response.
+unsafe fn try_smart_query(
+    handle: winapi::um::winnt::HANDLE,
+    property_id: u32,
+    path: &str,
+) -> Option<NvmeSmartLog> {
+    unsafe {
+    let query = StoragePropertyQuery {
+        property_id,
+        query_type: 0, // PropertyStandardQuery
+        protocol_specific: StorageProtocolSpecificData {
+            protocol_type: STORAGE_PROTOCOL_TYPE_NVME,
+            data_type: NVME_DATA_TYPE_LOG_PAGE,
+            protocol_data_request_value: NVME_LOG_PAGE_SMART,
+            protocol_data_request_sub_value: 0,
+            protocol_data_offset: mem::size_of::<StorageProtocolSpecificData>() as u32,
+            protocol_data_length: SMART_LOG_SIZE,
+            fixed_protocol_return_data: 0,
+            reserved: [0; 3],
+        },
+    };
+
+    let mut output_buf = vec![0u8; OUTPUT_BUF_SIZE];
+    let mut bytes_returned: DWORD = 0;
+
+    let ok = DeviceIoControl(
+        handle,
+        IOCTL_STORAGE_QUERY_PROPERTY,
+        &query as *const StoragePropertyQuery as *mut _,
+        mem::size_of::<StoragePropertyQuery>() as DWORD,
+        output_buf.as_mut_ptr() as *mut _,
+        OUTPUT_BUF_SIZE as DWORD,
+        &mut bytes_returned,
+        ptr::null_mut(),
+    );
+
+    if ok == FALSE {
+        let err = std::io::Error::last_os_error();
+        log::debug!(
+            "NVMe SMART query (PropertyId={}) failed on {}: {}",
+            property_id,
+            path,
+            err
+        );
+        return None;
+    }
+
+    if (bytes_returned as usize) < OUTPUT_BUF_SIZE {
+        log::debug!(
+            "Short read from {} ({} bytes, expected {})",
+            path,
+            bytes_returned,
+            OUTPUT_BUF_SIZE
+        );
+        return None;
+    }
+
+    // The SMART log payload starts after the data descriptor header +
+    // protocol-specific data structure.
+    let log_offset = DATA_DESCRIPTOR_HEADER + PROTOCOL_SPECIFIC_DATA_SIZE;
+    let log_bytes = &output_buf[log_offset..log_offset + SMART_LOG_SIZE as usize];
+
+    // Copy into the NvmeSmartLog struct
+    let mut log: NvmeSmartLog = mem::zeroed();
+    ptr::copy_nonoverlapping(
+        log_bytes.as_ptr(),
+        &mut log as *mut NvmeSmartLog as *mut u8,
+        SMART_LOG_SIZE as usize,
+    );
+
+    log::debug!(
+        "NVMe SMART query (PropertyId={}) succeeded on {}",
+        property_id,
+        path
+    );
+    Some(log)
+    } // unsafe
 }
