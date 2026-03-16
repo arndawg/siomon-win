@@ -890,7 +890,10 @@ fn draw(
         let priv_hint = if is_root {
             ""
         } else {
-            " | \u{26a0} run as root for SMART, DMI serials, MSR"
+            #[cfg(unix)]
+            { " | \u{26a0} run as root for SMART, DMI serials, MSR" }
+            #[cfg(not(unix))]
+            { " | \u{26a0} run as Administrator for SMART data" }
         };
         let title = format!(
             " sio \u{2014} Sensor Monitor | {} sensors | {} groups ({} collapsed) | {}{}",
