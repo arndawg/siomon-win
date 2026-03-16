@@ -139,6 +139,9 @@ pub(crate) fn parse_aer_total(path: &Path) -> Option<u64> {
 // ── Windows (WMI via PowerShell) implementation ────────────────────────────
 
 #[cfg(windows)]
+use crate::model::gpu::PcieLinkInfo;
+
+#[cfg(windows)]
 pub fn collect() -> Vec<PciDevice> {
     collect_via_powershell().unwrap_or_default()
 }
@@ -203,8 +206,127 @@ $result | ConvertTo-Json -Compress
     let raw: Vec<WmiPciRow> = serde_json::from_str(&json_str).ok()?;
 
     let mut devices: Vec<PciDevice> = raw.iter().filter_map(|r| wmi_row_to_pci(r)).collect();
+
+    // Attach PCIe link info via WinRing0 PCI config space reads (if available)
+    attach_pcie_link_info(&mut devices);
+
     devices.sort_by(|a, b| a.address.cmp(&b.address));
     Some(devices)
+}
+
+/// Attempt to read PCIe link speed/width for every device using WinRing0.
+/// Silently skips if the driver is not available.
+#[cfg(windows)]
+fn attach_pcie_link_info(devices: &mut [PciDevice]) {
+    let wr = match crate::platform::winring0::WinRing0::try_load() {
+        Some(wr) => wr,
+        None => {
+            log::debug!("WinRing0 not available – skipping PCIe link info");
+            return;
+        }
+    };
+
+    for dev in devices.iter_mut() {
+        dev.pcie_link = read_pcie_link_winring0(wr, dev.bus, dev.device, dev.function);
+    }
+}
+
+/// Read the PCI Express Capability Structure from config space to extract
+/// link speed and width information.
+///
+/// Walks the PCI Capabilities List starting at the pointer in offset 0x34.
+/// When capability ID 0x10 (PCI Express) is found, reads:
+///   - Link Capabilities register (cap_offset + 0x0C)
+///   - Link Status register (cap_offset + 0x12, via dword at cap_offset + 0x10)
+#[cfg(windows)]
+fn read_pcie_link_winring0(
+    wr: &crate::platform::winring0::WinRing0,
+    bus: u8,
+    dev: u8,
+    func: u8,
+) -> Option<PcieLinkInfo> {
+    // Read the Status register (offset 0x06) to check if capabilities list exists.
+    // Bit 4 of Status indicates "Capabilities List" is present.
+    let status_dword = wr.read_pci_config_dword(bus, dev, func, 0x04);
+    let status = (status_dword >> 16) as u16;
+    if status == 0xFFFF {
+        // Device not present
+        return None;
+    }
+    if status & (1 << 4) == 0 {
+        // No capabilities list
+        return None;
+    }
+
+    // Read the capabilities pointer at offset 0x34
+    let cap_ptr_dword = wr.read_pci_config_dword(bus, dev, func, 0x34);
+    let mut cap_ptr = (cap_ptr_dword & 0xFF) as u8;
+
+    // Cap pointer must be dword-aligned and within config space
+    cap_ptr &= 0xFC;
+
+    // Walk the capabilities linked list (with a safety bound to avoid infinite loops)
+    let mut iterations = 0u32;
+    while cap_ptr != 0 && iterations < 48 {
+        iterations += 1;
+
+        let cap_dword = wr.read_pci_config_dword(bus, dev, func, cap_ptr);
+        let cap_id = (cap_dword & 0xFF) as u8;
+        let next_ptr = ((cap_dword >> 8) & 0xFC) as u8; // mask to dword-aligned
+
+        if cap_id == 0x10 {
+            // PCI Express capability found
+
+            // Link Capabilities at cap_ptr + 0x0C
+            let link_cap_offset = cap_ptr.checked_add(0x0C)?;
+            let link_cap = wr.read_pci_config_dword(bus, dev, func, link_cap_offset);
+            let max_speed_code = (link_cap & 0xF) as u8;
+            let max_width = ((link_cap >> 4) & 0x3F) as u8;
+
+            // Link Status at cap_ptr + 0x12 (16-bit register)
+            // Read dword at cap_ptr + 0x10, status is in upper 16 bits
+            let link_ctrl_status_offset = cap_ptr.checked_add(0x10)?;
+            let link_ctrl_status =
+                wr.read_pci_config_dword(bus, dev, func, link_ctrl_status_offset);
+            let link_status = (link_ctrl_status >> 16) as u16;
+            let current_speed_code = (link_status & 0xF) as u8;
+            let current_width = ((link_status >> 4) & 0x3F) as u8;
+
+            // Ignore devices with no valid link info (all zeros or unexpected values)
+            if current_speed_code == 0 && current_width == 0 && max_speed_code == 0 && max_width == 0
+            {
+                return None;
+            }
+
+            return Some(PcieLinkInfo {
+                current_gen: Some(current_speed_code),
+                current_width: Some(current_width),
+                max_gen: Some(max_speed_code),
+                max_width: Some(max_width),
+                current_speed: Some(pcie_speed_code_to_string(current_speed_code)),
+                max_speed: Some(pcie_speed_code_to_string(max_speed_code)),
+            });
+        }
+
+        cap_ptr = next_ptr;
+    }
+
+    None
+}
+
+/// Convert a PCIe Link Speed encoding (from Link Capabilities / Link Status)
+/// to a human-readable string.
+#[cfg(windows)]
+fn pcie_speed_code_to_string(code: u8) -> String {
+    match code {
+        1 => "2.5 GT/s PCIe".to_string(),
+        2 => "5.0 GT/s PCIe".to_string(),
+        3 => "8.0 GT/s PCIe".to_string(),
+        4 => "16.0 GT/s PCIe".to_string(),
+        5 => "32.0 GT/s PCIe".to_string(),
+        6 => "64.0 GT/s PCIe".to_string(),
+        _ => format!("Unknown ({})", code),
+    }
 }
 
 #[cfg(windows)]

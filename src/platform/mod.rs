@@ -21,6 +21,10 @@ pub mod sata_ioctl;
 pub mod sata_win;
 #[cfg(unix)]
 pub mod sinfo_io;
+#[cfg(windows)]
+pub mod sinfo_io_win;
 pub mod sysfs;
+#[cfg(windows)]
+pub mod smbus_win;
 #[cfg(windows)]
 pub mod winring0;

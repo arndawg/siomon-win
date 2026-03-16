@@ -6,9 +6,8 @@ use std::time::{Duration, Instant};
 use crate::model::sensor::{SensorId, SensorReading};
 use crate::sensors::SensorSource;
 #[cfg(unix)]
-use crate::sensors::{
-    hwmon, rapl, superio,
-};
+use crate::sensors::{hwmon, rapl};
+use crate::sensors::superio;
 use crate::sensors::{cpu_freq, cpu_util, disk_activity, gpu_sensors, network_stats};
 
 pub type SensorState = Arc<RwLock<HashMap<SensorId, SensorReading>>>;
@@ -296,8 +295,8 @@ fn discover_all_sources(
 #[cfg(not(unix))]
 fn discover_all_sources(
     no_nvidia: bool,
-    _direct_io: bool,
-    _label_overrides: &HashMap<String, String>,
+    direct_io: bool,
+    label_overrides: &HashMap<String, String>,
 ) -> Vec<Box<dyn SensorSource>> {
     let mut sources: Vec<Box<dyn SensorSource>> = Vec::new();
     sources.push(Box::new(cpu_freq::CpuFreqSource::discover()));
@@ -305,10 +304,47 @@ fn discover_all_sources(
     sources.push(Box::new(network_stats::NetworkStatsSource::discover()));
     sources.push(Box::new(disk_activity::DiskActivitySource::discover()));
     sources.push(Box::new(gpu_sensors::GpuSensorSource::discover(no_nvidia)));
+    #[cfg(feature = "nvidia")]
+    sources.push(Box::new(super::gpu_sensors_adl::AdlGpuSensorSource::discover()));
     sources.push(Box::new(super::whea::WheaSource::discover()));
+    sources.push(Box::new(super::rapl_win::RaplWinSource::discover()));
     let ipmi_src = super::ipmi_win::IpmiWinSource::discover();
     log::info!("IPMI: {}", if ipmi_src.is_available() { "yes" } else { "no" });
     sources.push(Box::new(ipmi_src));
+    let hsmp_src = super::hsmp_win::HsmpWinSource::discover();
+    log::info!("HSMP: {}", if hsmp_src.is_available() { "yes" } else { "no" });
+    sources.push(Box::new(hsmp_src));
+
+    // Super I/O and SMBus direct register access via WinRing0
+    if direct_io && crate::platform::port_io_win::PortIo::is_available() {
+        let chips = superio::chip_detect::detect_all();
+        let mut nct_count = 0;
+        let mut ite_count = 0;
+        for chip in chips {
+            let nct_s = superio::nct67xx::Nct67xxSource::new(chip.clone(), label_overrides);
+            if nct_s.is_supported() {
+                nct_count += 1;
+                sources.push(Box::new(nct_s));
+                continue;
+            }
+            let ite_s = superio::ite87xx::Ite87xxSource::new(chip);
+            if ite_s.is_supported() {
+                ite_count += 1;
+                sources.push(Box::new(ite_s));
+            }
+        }
+        if nct_count > 0 || ite_count > 0 {
+            log::info!(
+                "Super I/O: {} nct chips, {} ite chips",
+                nct_count,
+                ite_count
+            );
+        }
+
+        // SMBus: PMBus VRM + SPD5118 DIMM temperature via AMD FCH
+        sources.push(Box::new(super::smbus_win::SmbusWinSource::discover()));
+    }
+
     sources
 }
 

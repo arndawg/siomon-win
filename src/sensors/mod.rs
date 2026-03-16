@@ -21,10 +21,17 @@ pub mod network_stats;
 pub mod poller;
 #[cfg(unix)]
 pub mod rapl;
-#[cfg(unix)]
 pub mod superio;
+#[cfg(all(windows, feature = "nvidia"))]
+pub mod gpu_sensors_adl;
 #[cfg(windows)]
 pub mod ipmi_win;
+#[cfg(windows)]
+pub mod rapl_win;
+#[cfg(windows)]
+pub mod smbus_win;
+#[cfg(windows)]
+pub mod hsmp_win;
 #[cfg(windows)]
 pub mod whea;
 

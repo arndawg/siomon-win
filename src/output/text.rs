@@ -147,7 +147,10 @@ pub fn print_summary(info: &SystemInfo) {
     }
     // Show detected Super I/O chip if direct I/O is available
     #[cfg(unix)]
-    if unsafe { libc::geteuid() } == 0 {
+    let can_probe_sio = unsafe { libc::geteuid() } == 0;
+    #[cfg(windows)]
+    let can_probe_sio = crate::platform::port_io_win::PortIo::is_available();
+    if can_probe_sio {
         let chips = crate::sensors::superio::chip_detect::detect_all();
         for chip in &chips {
             let driver_status =
