@@ -1,6 +1,6 @@
 # siomon
 
-A comprehensive Linux hardware information and real-time sensor monitoring tool. Single static binary, no runtime dependencies.
+A comprehensive hardware information and real-time sensor monitoring tool for Linux and Windows. Single static binary, no runtime dependencies.
 
 ## Features
 
@@ -119,16 +119,20 @@ sudo sio
 ### Prerequisites
 
 - Rust 1.85+ (edition 2024)
-- Linux (kernel 4.x+ for full sysfs support; 5.x+ recommended)
-- Standard build tools (`gcc` or `cc` for libc linking)
+- **Linux:** kernel 4.x+ for full sysfs support; 5.x+ recommended. Standard build tools (`gcc` or `cc`)
+- **Windows:** Visual Studio Build Tools (MSVC) or `rustup` with `x86_64-pc-windows-msvc` target
 
 ### Build
 
 ```bash
+# Linux
 cargo build --release
+
+# Windows
+cargo build --release --target x86_64-pc-windows-msvc
 ```
 
-The binary is at `./target/release/sio` (~5.3 MB with all features, statically linked PCI ID database).
+The binary is at `./target/release/sio` (Linux) or `./target/x86_64-pc-windows-msvc/release/sio.exe` (Windows).
 
 ### Feature Flags
 
@@ -304,9 +308,61 @@ src/
 
 ## Install
 
+### Linux
+
 ```bash
 cargo install siomon
 ```
+
+### Windows
+
+```powershell
+# Via winget (when available)
+winget install arndawg.sio
+
+# Or download from GitHub Releases
+# https://github.com/arndawg/siomon-win/releases
+
+# Or build from source
+cargo build --release --target x86_64-pc-windows-msvc
+```
+
+### Windows Notes
+
+- **No runtime dependencies** — `sio.exe` is a standalone binary
+- **Run as Administrator** for SMART data and SMBIOS serial numbers
+- **NVIDIA GPU** monitoring requires the NVIDIA driver (`nvml.dll` is included)
+- **AMD GPU** monitoring requires the AMD driver (`atiadlxx.dll` is included)
+- **WinRing0** (optional) — install for SuperIO temps/fans/voltages, RAPL power,
+  PCIe link info, and AMD HSMP telemetry. Without it, sio runs with ~154 sensors;
+  with it, ~210+ sensors become available
+- **IPMI** — install `ipmitool` for BMC sensor access on server/workstation boards
+
+### Windows Data Sources
+
+| Data | Source |
+|------|--------|
+| CPU identification | CPUID instruction |
+| CPU topology | `sysinfo` crate |
+| CPU frequency | `CallNtPowerInformation` (powrprof.dll) |
+| CPU utilization | `sysinfo` crate |
+| CPU microcode | Registry (`CentralProcessor\0\Update Revision`) |
+| Memory | `sysinfo` + SMBIOS via `GetSystemFirmwareTable` |
+| Motherboard/BIOS | WMI (`wmic`) + Registry (Secure Boot) |
+| Chipset | PCI host bridge at `0000:00:00.0` |
+| GPU (NVIDIA) | NVML via `nvml.dll` |
+| GPU (AMD) | ADL via `atiadlxx.dll` |
+| Storage | `sysinfo` + NVMe/SATA SMART via `DeviceIoControl` |
+| Network | `GetAdaptersAddresses` (IP Helper API) |
+| PCI devices | WMI `Win32_PnPEntity` + `pci.ids` (embedded) |
+| USB devices | WMI `Win32_PnPEntity` |
+| Audio devices | WMI `Win32_SoundDevice` |
+| Battery | WMI `Win32_Battery` |
+| Display outputs | `EnumDisplayDevices` + `EnumDisplaySettings` |
+| WHEA errors | `wevtutil` (Windows Event Log) |
+| ACPI thermal | WMI `MSAcpi_ThermalZoneTemperature` |
+| Sensors (SuperIO) | WinRing0 port I/O (optional) |
+| Power (RAPL) | WinRing0 MSR access (optional) |
 
 ## License
 
