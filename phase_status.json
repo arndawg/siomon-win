@@ -1,0 +1,84 @@
+{
+  "project": "arndawg/siomon-win",
+  "branch": "windows-port",
+  "upstream": "level1techs/siomon",
+  "phases": {
+    "ALPHA": {
+      "title": "Windows Port Foundation",
+      "status": "completed",
+      "started": "2026-03-16",
+      "completed": "2026-03-16",
+      "plan": "PHASE_ALPHA.md",
+      "exit_report": "PHASE_ALPHA_EXIT_REPORT.md",
+      "summary": "Initial Windows port: platform gating, sysinfo collectors, NVML GPU sensors, per-core CPU frequency, NVMe/SATA SMART, PCI/USB/audio enumeration, TUI dashboard with 150 sensors",
+      "commits": [
+        "55564ff",
+        "7c11c14",
+        "ac67937",
+        "2837f42",
+        "78d2aa6",
+        "683d35e",
+        "b38a9dc",
+        "33138b6"
+      ],
+      "stats": {
+        "files_changed": 29,
+        "insertions": 3436,
+        "deletions": 158
+      },
+      "gaps_closed": [
+        "CPU identification (CPUID)",
+        "CPU topology (sysinfo)",
+        "CPU frequency (CallNtPowerInformation)",
+        "Memory stats (sysinfo)",
+        "Motherboard vendor/product (wmic)",
+        "Storage enumeration (sysinfo)",
+        "NVMe SMART (IOCTL_STORAGE_QUERY_PROPERTY)",
+        "SATA SMART (SMART_RCV_DRIVE_DATA)",
+        "NVIDIA GPU sensors (NVML)",
+        "PCI device enumeration (WMI + pci_ids)",
+        "USB device enumeration (WMI)",
+        "Audio device enumeration (WMI)",
+        "Per-core CPU utilization (sysinfo)",
+        "Disk throughput (sysinfo)",
+        "Network throughput (sysinfo)",
+        "Linux-specific string cleanup"
+      ],
+      "gaps_remaining": 14
+    },
+    "BETA": {
+      "title": "User-Mode Parity (no driver required)",
+      "status": "planned",
+      "plan": "PHASE_BETA.md",
+      "exit_report": null,
+      "summary": "Close all gaps achievable with user-mode Windows APIs: battery, network details, motherboard fields, USB details, audio codec, display outputs, WHEA errors, IPMI",
+      "work_items": {
+        "B1": { "title": "Battery information", "gap": 4, "effort": "low", "status": "pending" },
+        "B2": { "title": "Network interface details (MAC, IP, speed)", "gap": 5, "effort": "medium", "status": "pending" },
+        "B3": { "title": "Motherboard detail fields", "gap": 11, "effort": "low", "status": "pending" },
+        "B4": { "title": "USB device details (speed, class)", "gap": 12, "effort": "medium", "status": "pending" },
+        "B5": { "title": "Audio codec name", "gap": 13, "effort": "low", "status": "pending" },
+        "B6": { "title": "Display output enumeration", "gap": 6, "effort": "medium", "status": "pending" },
+        "B7": { "title": "WHEA error monitoring (MCE/EDAC/AER)", "gap": 8, "effort": "medium", "status": "pending" },
+        "B8": { "title": "IPMI BMC sensors", "gap": 9, "effort": "medium", "status": "pending" }
+      }
+    },
+    "GAMMA": {
+      "title": "Driver-Gated Hardware Sensors",
+      "status": "planned",
+      "plan": null,
+      "exit_report": null,
+      "summary": "WinRing0 integration for SuperIO, RAPL, HSMP, I2C/PMBus, PCIe link info, AMD ADL GPU sensors",
+      "work_items": {
+        "G1": { "title": "WinRing0 port I/O integration", "gap": [1, 14], "effort": "medium", "status": "pending" },
+        "G2": { "title": "SuperIO temps/fans/voltages (NCT67xx, IT87xx)", "gap": 1, "effort": "medium", "status": "pending", "depends_on": "G1" },
+        "G3": { "title": "RAPL power metering via MSR", "gap": 2, "effort": "low-medium", "status": "pending", "depends_on": "G1" },
+        "G4": { "title": "AMD HSMP telemetry via SMN mailbox", "gap": 3, "effort": "high", "status": "pending", "depends_on": "G1" },
+        "G5": { "title": "I2C/PMBus VRM monitoring", "gap": 10, "effort": "high", "status": "pending", "depends_on": "G1" },
+        "G6": { "title": "PCIe link speed/width", "gap": 7, "effort": "medium", "status": "pending", "depends_on": "G1" },
+        "G7": { "title": "AMD ADL GPU sensors", "gap": 6, "effort": "medium", "status": "pending" },
+        "G8": { "title": "DDR5 DIMM temperatures (SPD5118)", "gap": 10, "effort": "high", "status": "pending", "depends_on": "G5" }
+      }
+    }
+  }
+}
