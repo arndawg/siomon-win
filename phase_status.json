@@ -2,8 +2,8 @@
   "project": "arndawg/siomon-win",
   "branch": "windows-port",
   "upstream": "level1techs/siomon",
-  "release": "v0.1.3-win.1",
-  "release_url": "https://github.com/arndawg/siomon-win/releases/tag/v0.1.3-win.1",
+  "release": "v0.1.3-win.3",
+  "release_url": "https://github.com/arndawg/siomon-win/releases/tag/v0.1.3-win.3",
   "phases": {
     "ALPHA": {
       "title": "Windows Port Foundation",
@@ -32,34 +32,32 @@
     "EPSILON": {
       "title": "CI, Release, and winget Distribution",
       "status": "completed",
-      "started": "2026-03-16",
-      "completed": "2026-03-16",
-      "plan": "PHASE_EPSILON.md",
-      "exit_report": "PHASE_EPSILON_EXIT_REPORT.md",
-      "summary": "cargo fmt + clippy (28 files, 14 fixes), Windows CI jobs (check/build/test), release workflow with zip+SHA256, tagged release v0.1.3-win.1, winget manifest (validated), README with Windows docs",
-      "commits": ["cbf0194", "ccec053", "b57fe23"],
-      "work_items": {
-        "E1": { "title": "Windows CI jobs", "status": "completed" },
-        "E2": { "title": "Windows release workflow", "status": "completed" },
-        "E3": { "title": "Tagged release v0.1.3-win.1", "status": "completed" },
-        "E4": { "title": "winget manifest (validated, ready for PR)", "status": "completed" },
-        "E5": { "title": "README Windows instructions", "status": "completed" },
-        "E6": { "title": "Linux CI compatibility (fmt + clippy)", "status": "completed" }
-      }
+      "plan": "archive/PHASE_EPSILON.md",
+      "exit_report": "archive/PHASE_EPSILON_EXIT_REPORT.md"
     },
     "ZETA": {
-      "title": "Upstream Merge and Platform Expansion",
+      "title": "Distribution and Upstream Merge",
+      "status": "planned",
+      "plan": "PHASE_ZETA.md",
+      "exit_report": null,
+      "summary": "Submit winget PR (schema 1.10.0, matching tmux-windows pattern), upstream PR to level1techs/siomon, automated winget version bumps. Z4 (ARM64) and Z5 (WinRing0 validation) deferred to ETA.",
+      "work_items": {
+        "Z1": { "title": "Verify fork main branch is ready", "effort": "low", "status": "completed", "note": "Merged in EPSILON, CI active" },
+        "Z2": { "title": "Submit winget PR to microsoft/winget-pkgs", "effort": "low", "status": "pending" },
+        "Z3": { "title": "Upstream PR to level1techs/siomon (rebase + squash)", "effort": "medium", "status": "pending" },
+        "Z6": { "title": "Automated winget version bump on release", "effort": "medium", "status": "pending" }
+      }
+    },
+    "ETA": {
+      "title": "Platform Expansion and Hardware Validation",
       "status": "future",
       "plan": null,
       "exit_report": null,
-      "summary": "Merge windows-port to main (activates CI), submit winget PR, upstream PR to level1techs/siomon, ARM64 Windows, WinRing0 live validation, automated winget version bumps",
+      "summary": "ARM64 Windows port, WinRing0 live hardware validation, macOS investigation",
       "work_items": {
-        "Z1": { "title": "Merge windows-port to main on fork", "effort": "low", "status": "pending" },
-        "Z2": { "title": "Submit winget PR to microsoft/winget-pkgs", "effort": "low", "status": "pending" },
-        "Z3": { "title": "Upstream PR to level1techs/siomon (rebase + squash)", "effort": "medium", "status": "pending" },
-        "Z4": { "title": "ARM64 Windows (aarch64-pc-windows-msvc)", "effort": "high", "status": "pending" },
-        "Z5": { "title": "WinRing0 live hardware validation", "effort": "high", "status": "pending" },
-        "Z6": { "title": "Automated winget version bump on release", "effort": "medium", "status": "pending" }
+        "H1": { "title": "ARM64 Windows (aarch64-pc-windows-msvc)", "effort": "high", "status": "pending" },
+        "H2": { "title": "WinRing0 live hardware validation on multiple platforms", "effort": "high", "status": "pending" },
+        "H3": { "title": "macOS port investigation", "effort": "high", "status": "pending" }
       }
     }
   }
