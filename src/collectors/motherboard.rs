@@ -10,30 +10,95 @@ use std::path::Path;
 pub fn collect() -> MotherboardInfo {
     let manufacturer = get_wmic_value("baseboard", "Manufacturer");
     let product = get_wmic_value("baseboard", "Product");
+    let serial = get_wmic_value("baseboard", "SerialNumber");
+    let version = get_wmic_value("baseboard", "Version");
     let bios_version = get_wmic_value("bios", "SMBIOSBIOSVersion");
     let bios_date = get_wmic_value("bios", "ReleaseDate");
+    let bios_vendor = get_wmic_value("bios", "Manufacturer");
+    let bios_release = match (
+        get_wmic_value("bios", "SMBIOSMajorVersion"),
+        get_wmic_value("bios", "SMBIOSMinorVersion"),
+    ) {
+        (Some(major), Some(minor)) => Some(format!("{}.{}", major, minor)),
+        _ => None,
+    };
+
+    let system_family = get_wmic_value("computersystem", "SystemFamily");
+    let system_sku = get_wmic_value("computersystem", "SystemSKUNumber");
+    let system_uuid = get_wmic_value("csproduct", "UUID");
+
+    // ChassisTypes returns something like "{3}" — extract the number and map it.
+    let chassis_type = get_wmic_value("systemenclosure", "ChassisTypes").and_then(|raw| {
+        let digits: String = raw.chars().filter(|c| c.is_ascii_digit()).collect();
+        digits.parse::<u8>().ok().map(chassis_type_name)
+    });
+
+    // Detect UEFI and Secure Boot from the registry.
+    let (uefi_boot, secure_boot) = detect_uefi_secure_boot();
 
     MotherboardInfo {
         manufacturer,
         product_name: product,
-        version: None,
-        serial_number: None,
+        version,
+        serial_number: serial,
         system_vendor: get_wmic_value("computersystem", "Manufacturer"),
         system_product: get_wmic_value("computersystem", "Model"),
-        system_family: None,
-        system_sku: None,
-        system_uuid: None,
-        chassis_type: None,
+        system_family,
+        system_sku,
+        system_uuid,
+        chassis_type,
         bios: BiosInfo {
-            vendor: None,
+            vendor: bios_vendor,
             version: bios_version,
             date: bios_date,
-            release: None,
-            uefi_boot: true,
-            secure_boot: None,
+            release: bios_release,
+            uefi_boot,
+            secure_boot,
         },
         chipset: None,
         me_version: None,
+    }
+}
+
+/// Detect UEFI boot mode and Secure Boot status via the Windows registry.
+///
+/// If the SecureBoot registry key exists at all, the system booted via UEFI.
+/// The `UEFISecureBootEnabled` DWORD value of 1 means Secure Boot is on.
+#[cfg(not(unix))]
+fn detect_uefi_secure_boot() -> (bool, Option<bool>) {
+    let output = std::process::Command::new("reg")
+        .args([
+            "query",
+            r"HKLM\SYSTEM\CurrentControlSet\Control\SecureBoot\State",
+            "/v",
+            "UEFISecureBootEnabled",
+        ])
+        .output();
+
+    match output {
+        Ok(ref o) if o.status.success() => {
+            let text = String::from_utf8_lossy(&o.stdout);
+            // The key exists, so the system booted via UEFI.
+            let uefi_boot = true;
+            // Parse the REG_DWORD value — line looks like:
+            //     UEFISecureBootEnabled    REG_DWORD    0x1
+            let secure_boot = text.lines().find_map(|line| {
+                if line.contains("UEFISecureBootEnabled") {
+                    // The last whitespace-delimited token is the hex value.
+                    line.split_whitespace().last().and_then(|tok| {
+                        let tok = tok.strip_prefix("0x").unwrap_or(tok);
+                        u32::from_str_radix(tok, 16).ok().map(|v| v == 1)
+                    })
+                } else {
+                    None
+                }
+            });
+            (uefi_boot, secure_boot)
+        }
+        _ => {
+            // Key doesn't exist — not a UEFI boot (legacy BIOS), secure boot unknown.
+            (false, None)
+        }
     }
 }
 
@@ -195,7 +260,6 @@ impl crate::collectors::Collector for MotherboardCollector {
     }
 }
 
-#[cfg(unix)]
 fn chassis_type_name(code: u8) -> String {
     match code {
         1 => "Other",

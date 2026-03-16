@@ -186,13 +186,15 @@ fn wmi_row_to_audio(row: &WmiAudioRow, idx: u32) -> AudioDevice {
     // Use manufacturer as driver hint
     let driver = row.manufacturer.clone().unwrap_or_else(|| "Unknown".to_string());
 
+    let codec = resolve_codec_from_device_id(device_id);
+
     AudioDevice {
         card_index: row.index.unwrap_or(idx),
         card_id: name.clone(),
         card_long_name: name,
         driver,
         bus_type,
-        codec: None, // Not available from WMI
+        codec,
         pci_bus_address,
     }
 }
@@ -221,6 +223,71 @@ fn extract_pci_address(device_id: &str) -> Option<String> {
         hex
     };
     Some(format!("VEN_{}&DEV_{}", ven, dev))
+}
+
+/// Resolve a human-readable codec name from an HDAUDIO DeviceID string.
+///
+/// HD Audio DeviceIDs follow the pattern:
+///   `HDAUDIO\FUNC_01&VEN_10EC&DEV_0887&SUBSYS_...`
+///
+/// Known vendor prefixes are mapped to friendly names.  For Realtek devices
+/// the ALC model number is derived from the DEV field (e.g. DEV_0887 -> ALC887).
+#[cfg(windows)]
+fn resolve_codec_from_device_id(device_id: &str) -> Option<String> {
+    // Only attempt resolution for HD Audio device IDs
+    if !device_id.starts_with("HDAUDIO") {
+        return None;
+    }
+
+    let ven = extract_hex_field(device_id, "VEN_")?;
+    let dev = extract_hex_field(device_id, "DEV_");
+
+    let ven_upper = ven.to_uppercase();
+    match ven_upper.as_str() {
+        "10EC" => {
+            // Realtek: derive ALC model number from the DEV field
+            if let Some(dev_hex) = dev {
+                let dev_upper = dev_hex.to_uppercase();
+                // Strip leading zeros for the model number (e.g. "0887" -> "887")
+                let model = dev_upper.trim_start_matches('0');
+                if model.is_empty() {
+                    Some("Realtek HD Audio".to_string())
+                } else {
+                    Some(format!("Realtek ALC{}", model))
+                }
+            } else {
+                Some("Realtek HD Audio".to_string())
+            }
+        }
+        "10DE" => Some("NVIDIA HD Audio".to_string()),
+        "8086" => Some("Intel HD Audio".to_string()),
+        "1002" | "1022" => Some("AMD HD Audio".to_string()),
+        "14F1" => Some("Conexant HD Audio".to_string()),
+        "11C1" => Some("LSI / Agere HD Audio".to_string()),
+        _ => {
+            // Unknown vendor – return raw VEN:DEV so the user still gets something
+            if let Some(dev_hex) = dev {
+                Some(format!("HD Audio [{}:{}]", ven_upper, dev_hex.to_uppercase()))
+            } else {
+                Some(format!("HD Audio [{}]", ven_upper))
+            }
+        }
+    }
+}
+
+/// Extract a hex value following a given marker (e.g. "VEN_" -> "10EC") from a DeviceID.
+#[cfg(windows)]
+fn extract_hex_field(device_id: &str, marker: &str) -> Option<String> {
+    let start = device_id.find(marker)? + marker.len();
+    let hex: String = device_id[start..]
+        .chars()
+        .take_while(|c| c.is_ascii_hexdigit())
+        .collect();
+    if hex.is_empty() {
+        None
+    } else {
+        Some(hex)
+    }
 }
 
 // ── Shared ─────────────────────────────────────────────────────────────────
@@ -290,5 +357,64 @@ mod tests {
         assert_eq!(dev.bus_type, AudioBusType::HdAudio);
         assert_eq!(dev.card_id, "Realtek High Definition Audio");
         assert_eq!(dev.driver, "Realtek");
+        assert_eq!(dev.codec, Some("Realtek ALC892".to_string()));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_resolve_codec_realtek() {
+        let did = r"HDAUDIO\FUNC_01&VEN_10EC&DEV_0887&SUBSYS_10438723&REV_1003\5&1234&0&0001";
+        assert_eq!(
+            resolve_codec_from_device_id(did),
+            Some("Realtek ALC887".to_string())
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_resolve_codec_nvidia() {
+        let did = r"HDAUDIO\FUNC_01&VEN_10DE&DEV_0094&SUBSYS_12345678&REV_0001\6&ABCD&0&0001";
+        assert_eq!(
+            resolve_codec_from_device_id(did),
+            Some("NVIDIA HD Audio".to_string())
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_resolve_codec_intel() {
+        let did = r"HDAUDIO\FUNC_01&VEN_8086&DEV_2812&SUBSYS_00000000&REV_0000\1&2345&0&0001";
+        assert_eq!(
+            resolve_codec_from_device_id(did),
+            Some("Intel HD Audio".to_string())
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_resolve_codec_amd() {
+        let did = r"HDAUDIO\FUNC_01&VEN_1002&DEV_AA38&SUBSYS_00000000&REV_0000\3&5678&0&0001";
+        assert_eq!(
+            resolve_codec_from_device_id(did),
+            Some("AMD HD Audio".to_string())
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_resolve_codec_non_hdaudio() {
+        // USB or other non-HDAUDIO devices should return None
+        let did = r"USB\VID_046D&PID_0A44\1234567890";
+        assert_eq!(resolve_codec_from_device_id(did), None);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_resolve_codec_unknown_vendor() {
+        let did = r"HDAUDIO\FUNC_01&VEN_BEEF&DEV_1234&SUBSYS_00000000&REV_0000\1&2345&0&0001";
+        assert_eq!(
+            resolve_codec_from_device_id(did),
+            Some("HD Audio [BEEF:1234]".to_string())
+        );
     }
 }
