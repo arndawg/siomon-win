@@ -7,6 +7,10 @@ pub fn print_summary(info: &SystemInfo) {
     if unsafe { libc::geteuid() } != 0 {
         println!("  (run as root for SMART data, DMI serials, and MSR access)");
     }
+    #[cfg(windows)]
+    if !is_windows_admin() {
+        println!("  (run as Administrator for SMART data)");
+    }
     println!();
 
     // System
@@ -714,6 +718,42 @@ fn format_bytes_u128(bytes: u128) -> String {
         format!("{:.1} MiB", bytes as f64 / MIB as f64)
     } else {
         format!("{bytes} B")
+    }
+}
+
+/// Check whether the current process is running with Administrator privileges.
+///
+/// Attempts to open `\\.\PhysicalDrive0` for reading — this requires admin on
+/// Windows.  If the open fails with `ACCESS_DENIED`, the user is not elevated.
+#[cfg(windows)]
+fn is_windows_admin() -> bool {
+    use std::ptr;
+    use winapi::um::fileapi::{CreateFileW, OPEN_EXISTING};
+    use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
+    use winapi::um::winnt::{FILE_SHARE_READ, FILE_SHARE_WRITE, GENERIC_READ};
+
+    fn to_wide(s: &str) -> Vec<u16> {
+        use std::ffi::OsStr;
+        use std::os::windows::ffi::OsStrExt;
+        OsStr::new(s).encode_wide().chain(std::iter::once(0)).collect()
+    }
+
+    let wide = to_wide("\\\\.\\PhysicalDrive0");
+    unsafe {
+        let handle = CreateFileW(
+            wide.as_ptr(),
+            GENERIC_READ,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            ptr::null_mut(),
+            OPEN_EXISTING,
+            0,
+            ptr::null_mut(),
+        );
+        if handle == INVALID_HANDLE_VALUE {
+            return false;
+        }
+        CloseHandle(handle);
+        true
     }
 }
 

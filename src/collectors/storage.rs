@@ -5,6 +5,8 @@ use crate::model::storage::{NvmeDetails, SmartData};
 use crate::platform::sysfs;
 #[cfg(unix)]
 use crate::platform::{nvme_ioctl, sata_ioctl};
+#[cfg(windows)]
+use crate::platform::{nvme_win, sata_win};
 #[cfg(unix)]
 use std::path::Path;
 
@@ -46,7 +48,7 @@ pub fn collect() -> Vec<StorageDevice> {
 pub fn collect() -> Vec<StorageDevice> {
     use sysinfo::{DiskKind, Disks};
     let disks = Disks::new_with_refreshed_list();
-    disks
+    let mut devices: Vec<StorageDevice> = disks
         .list()
         .iter()
         .map(|disk| {
@@ -81,7 +83,160 @@ pub fn collect() -> Vec<StorageDevice> {
                 smart: None,
             }
         })
-        .collect()
+        .collect();
+
+    // Try to read SMART data from physical drives and attach to matching
+    // logical drives.  We probe PhysicalDrive0..15 and attempt NVMe SMART
+    // first (most modern drives), then SATA SMART as fallback.
+    #[cfg(windows)]
+    attach_smart_data(&mut devices);
+
+    devices
+}
+
+/// Probe `\\.\PhysicalDrive0..15` for SMART data and attach to devices that
+/// don't already have it.  We match physical drives to logical sysinfo entries
+/// by capacity (best-effort heuristic).
+#[cfg(windows)]
+fn attach_smart_data(devices: &mut [StorageDevice]) {
+    use winapi::shared::minwindef::{DWORD, FALSE};
+    use winapi::um::fileapi::CreateFileW;
+    use winapi::um::handleapi::{CloseHandle, INVALID_HANDLE_VALUE};
+    use winapi::um::ioapiset::DeviceIoControl;
+    use winapi::um::winioctl::IOCTL_DISK_GET_DRIVE_GEOMETRY_EX;
+    use winapi::um::winnt::{FILE_SHARE_READ, FILE_SHARE_WRITE, GENERIC_READ};
+    use std::mem;
+    use std::ptr;
+
+    /// Minimal `DISK_GEOMETRY_EX` — we only need the total `DiskSize`.
+    #[repr(C)]
+    struct DiskGeometryEx {
+        geometry: DiskGeometry,
+        disk_size: i64,
+        // Data[1] follows but we don't need it.
+    }
+
+    #[repr(C)]
+    struct DiskGeometry {
+        cylinders: i64,
+        media_type: u32,
+        tracks_per_cylinder: DWORD,
+        sectors_per_track: DWORD,
+        bytes_per_sector: DWORD,
+    }
+
+    /// Encode a Rust `&str` as null-terminated UTF-16.
+    fn to_wide(s: &str) -> Vec<u16> {
+        use std::ffi::OsStr;
+        use std::os::windows::ffi::OsStrExt;
+        OsStr::new(s).encode_wide().chain(std::iter::once(0)).collect()
+    }
+
+    for drive_num in 0u32..16 {
+        // Try NVMe SMART first
+        if let Some(log) = nvme_win::read_nvme_smart(drive_num) {
+            let smart = nvme_win::nvme_smart_to_smart_data(&log);
+            if let Some(dev) = match_physical_to_logical(devices, drive_num, to_wide, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX) {
+                dev.smart = Some(smart);
+                if dev.interface == StorageInterface::Unknown("unknown".to_string()) {
+                    dev.interface = StorageInterface::NVMe;
+                }
+            }
+            continue;
+        }
+
+        // Try SATA SMART
+        if let Some(ata) = sata_win::read_sata_smart(drive_num) {
+            let smart = sata_win::sata_smart_to_smart_data(&ata);
+            if let Some(dev) = match_physical_to_logical(devices, drive_num, to_wide, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX) {
+                dev.smart = Some(smart);
+                if dev.interface == StorageInterface::Unknown("unknown".to_string()) {
+                    dev.interface = StorageInterface::SATA;
+                }
+            }
+        }
+    }
+
+    /// Find the logical device (from sysinfo) that best matches a physical
+    /// drive by capacity.  Returns `None` if no unmatched device is close
+    /// enough in size (<10 % difference).
+    fn match_physical_to_logical<'a>(
+        devices: &'a mut [StorageDevice],
+        drive_num: u32,
+        to_wide: fn(&str) -> Vec<u16>,
+        ioctl_geom: DWORD,
+    ) -> Option<&'a mut StorageDevice> {
+        // Read the physical drive capacity via IOCTL_DISK_GET_DRIVE_GEOMETRY_EX.
+        let phys_capacity = get_physical_drive_size(drive_num, to_wide, ioctl_geom)?;
+
+        // Find the device whose capacity is closest (and within 10 %) that
+        // doesn't already have SMART data.
+        let mut best_idx: Option<usize> = None;
+        let mut best_diff: u64 = u64::MAX;
+        for (i, dev) in devices.iter().enumerate() {
+            if dev.smart.is_some() {
+                continue;
+            }
+            let cap = dev.capacity_bytes;
+            // sysinfo reports usable filesystem size which is smaller than raw
+            // physical size, so allow physical >= logical with up to 15 %
+            // difference.
+            let diff = if phys_capacity >= cap {
+                phys_capacity - cap
+            } else {
+                cap - phys_capacity
+            };
+            let threshold = phys_capacity / 6; // ~16 %
+            if diff < threshold && diff < best_diff {
+                best_diff = diff;
+                best_idx = Some(i);
+            }
+        }
+
+        best_idx.map(|i| &mut devices[i])
+    }
+
+    /// Query the raw size (in bytes) of `\\.\PhysicalDriveN` via
+    /// `IOCTL_DISK_GET_DRIVE_GEOMETRY_EX`.
+    fn get_physical_drive_size(
+        drive_num: u32,
+        to_wide: fn(&str) -> Vec<u16>,
+        ioctl_geom: DWORD,
+    ) -> Option<u64> {
+        let path = format!("\\\\.\\PhysicalDrive{}", drive_num);
+        let wide = to_wide(&path);
+        unsafe {
+            let handle = CreateFileW(
+                wide.as_ptr(),
+                GENERIC_READ,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                ptr::null_mut(),
+                winapi::um::fileapi::OPEN_EXISTING,
+                0,
+                ptr::null_mut(),
+            );
+            if handle == INVALID_HANDLE_VALUE {
+                return None;
+            }
+            let mut geom: DiskGeometryEx = mem::zeroed();
+            let mut returned: DWORD = 0;
+            let ok = DeviceIoControl(
+                handle,
+                ioctl_geom,
+                ptr::null_mut(),
+                0,
+                &mut geom as *mut DiskGeometryEx as *mut _,
+                mem::size_of::<DiskGeometryEx>() as DWORD,
+                &mut returned,
+                ptr::null_mut(),
+            );
+            CloseHandle(handle);
+            if ok == FALSE {
+                return None;
+            }
+            Some(geom.disk_size as u64)
+        }
+    }
 }
 
 pub struct StorageCollector;
