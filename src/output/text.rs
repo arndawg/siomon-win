@@ -3,6 +3,7 @@ use crate::model::system::SystemInfo;
 pub fn print_summary(info: &SystemInfo) {
     println!("  sio - System Information");
     println!("  ========================");
+    #[cfg(unix)]
     if unsafe { libc::geteuid() } != 0 {
         println!("  (run as root for SMART data, DMI serials, and MSR access)");
     }
@@ -141,6 +142,7 @@ pub fn print_summary(info: &SystemInfo) {
         println!("  ME Firmware:     {me}");
     }
     // Show detected Super I/O chip if direct I/O is available
+    #[cfg(unix)]
     if unsafe { libc::geteuid() } == 0 {
         let chips = crate::sensors::superio::chip_detect::detect_all();
         for chip in &chips {
@@ -222,11 +224,20 @@ pub fn print_summary(info: &SystemInfo) {
                 .as_deref()
                 .map(|s| format!(" [{s}]"))
                 .unwrap_or_default();
+            #[cfg(unix)]
+            let dev_label = format!("/dev/{}:", dev.device_name);
+            #[cfg(not(unix))]
+            let dev_label = dev.device_name.clone();
+            let iface = match &dev.interface {
+                crate::model::storage::StorageInterface::Unknown(s) if s.is_empty() || s == "unknown" => "Unknown".to_string(),
+                crate::model::storage::StorageInterface::Unknown(s) => s.clone(),
+                other => format!("{other:?}"),
+            };
             println!(
-                "  /dev/{}: {} ({:?}) {}{}",
-                dev.device_name,
+                "  {} {} ({}) {}{}",
+                dev_label,
                 model,
-                dev.interface,
+                iface,
                 format_bytes(dev.capacity_bytes),
                 serial,
             );

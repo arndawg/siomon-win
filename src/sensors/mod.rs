@@ -1,18 +1,29 @@
+#[cfg(unix)]
 pub mod aer;
 pub mod alerts;
+#[cfg(unix)]
 pub mod cpu_freq;
 pub mod cpu_util;
 pub mod disk_activity;
+#[cfg(unix)]
 pub mod edac;
+#[cfg(unix)]
 pub mod gpu_sensors;
+#[cfg(unix)]
 pub mod hsmp;
+#[cfg(unix)]
 pub mod hwmon;
+#[cfg(unix)]
 pub mod i2c;
+#[cfg(unix)]
 pub mod ipmi;
+#[cfg(unix)]
 pub mod mce;
 pub mod network_stats;
 pub mod poller;
+#[cfg(unix)]
 pub mod rapl;
+#[cfg(unix)]
 pub mod superio;
 
 use crate::model::sensor::{SensorId, SensorReading};

@@ -439,6 +439,35 @@ fn parse_hex_or_dec(s: &str) -> Option<u32> {
 // Topology from sysfs
 // ---------------------------------------------------------------------------
 
+#[cfg(not(unix))]
+fn gather_topology() -> CpuTopology {
+    use sysinfo::System;
+    let mut sys = System::new();
+    sys.refresh_cpu_all();
+    let logical = sys.cpus().len() as u32;
+    let physical = sys.physical_core_count().unwrap_or(logical as usize) as u32;
+    let physical = physical.max(1);
+    let logical = logical.max(physical);
+    let smt_enabled = logical > physical;
+    let threads_per_core = if smt_enabled && physical > 0 {
+        logical / physical
+    } else {
+        1
+    };
+    CpuTopology {
+        packages: 1,
+        dies_per_package: 1,
+        physical_cores: physical,
+        logical_processors: logical,
+        smt_enabled,
+        threads_per_core,
+        cores_per_die: Some(physical),
+        numa_nodes: vec![],
+        online_cpus: format!("0-{}", logical.saturating_sub(1)),
+    }
+}
+
+#[cfg(unix)]
 fn gather_topology() -> CpuTopology {
     let cpu_dirs = sysfs::glob_paths("/sys/devices/system/cpu/cpu[0-9]*");
     let logical_processors = cpu_dirs.len() as u32;
@@ -507,6 +536,7 @@ fn gather_topology() -> CpuTopology {
     }
 }
 
+#[cfg(unix)]
 fn gather_numa_nodes() -> Vec<NumaNode> {
     let mut nodes = Vec::new();
     let node_dirs = sysfs::glob_paths("/sys/devices/system/node/node[0-9]*");
@@ -537,6 +567,7 @@ fn gather_numa_nodes() -> Vec<NumaNode> {
     nodes
 }
 
+#[cfg(unix)]
 fn parse_numa_meminfo(path: &Path) -> Option<u64> {
     let content = std::fs::read_to_string(path).ok()?;
     for line in content.lines() {
@@ -579,6 +610,21 @@ struct FrequencyInfo {
     scaling_driver: Option<String>,
 }
 
+#[cfg(not(unix))]
+fn gather_frequency() -> FrequencyInfo {
+    use sysinfo::System;
+    let mut sys = System::new();
+    sys.refresh_cpu_all();
+    // sysinfo reports the current frequency; use it as the boost/max indicator
+    let freq_mhz = sys.cpus().first().map(|c| c.frequency() as f64);
+    FrequencyInfo {
+        base_clock_mhz: None,
+        boost_clock_mhz: freq_mhz,
+        scaling_driver: None,
+    }
+}
+
+#[cfg(unix)]
 fn gather_frequency() -> FrequencyInfo {
     let cpufreq = Path::new("/sys/devices/system/cpu/cpu0/cpufreq");
 

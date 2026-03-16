@@ -1,7 +1,12 @@
-use crate::model::network::{IpAddress, NetworkAdapter, NetworkInterfaceType};
+use crate::model::network::{NetworkAdapter, NetworkInterfaceType};
+#[cfg(unix)]
+use crate::model::network::IpAddress;
+#[cfg(unix)]
 use crate::platform::sysfs;
+#[cfg(unix)]
 use std::path::Path;
 
+#[cfg(unix)]
 pub fn collect(physical_only: bool) -> Vec<NetworkAdapter> {
     let mut adapters = Vec::new();
 
@@ -25,6 +30,32 @@ pub fn collect(physical_only: bool) -> Vec<NetworkAdapter> {
     adapters
 }
 
+#[cfg(not(unix))]
+pub fn collect(_physical_only: bool) -> Vec<NetworkAdapter> {
+    use sysinfo::Networks;
+    let networks = Networks::new_with_refreshed_list();
+    networks
+        .into_iter()
+        .map(|(name, _data)| NetworkAdapter {
+            name: name.clone(),
+            driver: None,
+            mac_address: None,
+            permanent_mac: None,
+            speed_mbps: None,
+            operstate: "up".to_string(),
+            duplex: None,
+            mtu: 1500,
+            interface_type: NetworkInterfaceType::Unknown(0),
+            is_physical: true,
+            pci_bus_address: None,
+            pci_vendor_id: None,
+            pci_device_id: None,
+            ip_addresses: vec![],
+            numa_node: None,
+        })
+        .collect()
+}
+
 pub struct NetworkCollector {
     pub physical_only: bool,
 }
@@ -39,6 +70,7 @@ impl crate::collectors::Collector for NetworkCollector {
     }
 }
 
+#[cfg(unix)]
 fn collect_adapter(name: &str, path: &Path, is_physical: bool) -> Option<NetworkAdapter> {
     let operstate =
         sysfs::read_string_optional(&path.join("operstate")).unwrap_or_else(|| "unknown".into());
@@ -94,6 +126,7 @@ fn collect_adapter(name: &str, path: &Path, is_physical: bool) -> Option<Network
     })
 }
 
+#[cfg(unix)]
 fn classify_interface(name: &str, type_code: u32, is_physical: bool) -> NetworkInterfaceType {
     // ARPHRD_LOOPBACK = 772
     if type_code == 772 || name == "lo" {
@@ -128,6 +161,7 @@ fn classify_interface(name: &str, type_code: u32, is_physical: bool) -> NetworkI
     NetworkInterfaceType::Unknown(type_code)
 }
 
+#[cfg(unix)]
 fn collect_ip_addresses(name: &str) -> Vec<IpAddress> {
     let mut addrs = Vec::new();
 
@@ -191,3 +225,4 @@ fn collect_ip_addresses(name: &str) -> Vec<IpAddress> {
 
     addrs
 }
+

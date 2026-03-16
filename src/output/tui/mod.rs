@@ -883,7 +883,10 @@ fn draw(
             .split(size);
 
         // Top bar
+        #[cfg(unix)]
         let is_root = unsafe { libc::geteuid() } == 0;
+        #[cfg(not(unix))]
+        let is_root = false;
         let priv_hint = if is_root {
             ""
         } else {

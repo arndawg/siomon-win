@@ -1,7 +1,12 @@
-use crate::model::memory::{DimmInfo, MemoryInfo, MemoryType};
+use crate::model::memory::MemoryInfo;
+#[cfg(unix)]
+use crate::model::memory::{DimmInfo, MemoryType};
+#[cfg(unix)]
 use crate::parsers::smbios;
+#[cfg(unix)]
 use crate::platform::procfs;
 
+#[cfg(unix)]
 pub fn collect() -> MemoryInfo {
     let meminfo = procfs::parse_meminfo();
 
@@ -29,6 +34,7 @@ pub fn collect() -> MemoryInfo {
     }
 }
 
+#[cfg(unix)]
 fn collect_dimms() -> Vec<DimmInfo> {
     // Primary: parse the raw SMBIOS tables directly from sysfs.
     if let Some(smbios_data) = smbios::parse() {
@@ -43,6 +49,7 @@ fn collect_dimms() -> Vec<DimmInfo> {
 }
 
 /// Convert raw SMBIOS memory device entries into the model's DimmInfo.
+#[cfg(unix)]
 fn convert_smbios_devices(devices: &[smbios::MemoryDeviceEntry]) -> Vec<DimmInfo> {
     devices
         .iter()
@@ -80,6 +87,7 @@ fn convert_smbios_devices(devices: &[smbios::MemoryDeviceEntry]) -> Vec<DimmInfo
 }
 
 /// Map the SMBIOS memory type byte to the model MemoryType enum.
+#[cfg(unix)]
 fn smbios_memory_type(code: u8) -> MemoryType {
     match code {
         0x18 => MemoryType::DDR3,
@@ -96,6 +104,7 @@ fn smbios_memory_type(code: u8) -> MemoryType {
 // dmidecode fallback (existing logic)
 // ---------------------------------------------------------------------------
 
+#[cfg(unix)]
 fn collect_dimms_dmidecode() -> Vec<DimmInfo> {
     let Ok(output) = std::process::Command::new("dmidecode")
         .args(["-t", "17"])
@@ -112,6 +121,7 @@ fn collect_dimms_dmidecode() -> Vec<DimmInfo> {
     parse_dmi_type17(&text)
 }
 
+#[cfg(unix)]
 fn parse_dmi_type17(text: &str) -> Vec<DimmInfo> {
     let mut dimms = Vec::new();
     let mut current: Option<DimmBuilder> = None;
@@ -205,6 +215,7 @@ fn parse_dmi_type17(text: &str) -> Vec<DimmInfo> {
     dimms
 }
 
+#[cfg(unix)]
 fn filter_placeholder(val: &str) -> Option<String> {
     let v = val.trim();
     if v.is_empty()
@@ -218,6 +229,7 @@ fn filter_placeholder(val: &str) -> Option<String> {
     }
 }
 
+#[cfg(unix)]
 fn parse_memory_type(s: &str) -> MemoryType {
     match s {
         "DDR3" => MemoryType::DDR3,
@@ -230,8 +242,10 @@ fn parse_memory_type(s: &str) -> MemoryType {
     }
 }
 
+#[cfg(unix)]
 pub struct MemoryCollector;
 
+#[cfg(unix)]
 impl crate::collectors::Collector for MemoryCollector {
     fn name(&self) -> &str {
         "memory"
@@ -242,6 +256,7 @@ impl crate::collectors::Collector for MemoryCollector {
     }
 }
 
+#[cfg(unix)]
 #[derive(Default)]
 struct DimmBuilder {
     locator: Option<String>,
@@ -261,6 +276,24 @@ struct DimmBuilder {
     rank: Option<u8>,
 }
 
+#[cfg(not(unix))]
+pub fn collect() -> MemoryInfo {
+    use sysinfo::System;
+    let mut sys = System::new();
+    sys.refresh_memory();
+    MemoryInfo {
+        total_bytes: sys.total_memory(),
+        available_bytes: sys.available_memory(),
+        swap_total_bytes: sys.total_swap(),
+        swap_free_bytes: sys.free_swap(),
+        max_capacity_bytes: None,
+        total_slots: None,
+        populated_slots: None,
+        dimms: vec![],
+    }
+}
+
+#[cfg(unix)]
 impl DimmBuilder {
     fn build(self) -> Option<DimmInfo> {
         let size = self.size_bytes?;

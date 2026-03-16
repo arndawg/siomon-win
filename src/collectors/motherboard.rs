@@ -1,8 +1,61 @@
 use crate::model::motherboard::{BiosInfo, MotherboardInfo};
+#[cfg(unix)]
 use crate::parsers::smbios;
+#[cfg(unix)]
 use crate::platform::sysfs;
+#[cfg(unix)]
 use std::path::Path;
 
+#[cfg(not(unix))]
+pub fn collect() -> MotherboardInfo {
+    let manufacturer = get_wmic_value("baseboard", "Manufacturer");
+    let product = get_wmic_value("baseboard", "Product");
+    let bios_version = get_wmic_value("bios", "SMBIOSBIOSVersion");
+    let bios_date = get_wmic_value("bios", "ReleaseDate");
+
+    MotherboardInfo {
+        manufacturer,
+        product_name: product,
+        version: None,
+        serial_number: None,
+        system_vendor: get_wmic_value("computersystem", "Manufacturer"),
+        system_product: get_wmic_value("computersystem", "Model"),
+        system_family: None,
+        system_sku: None,
+        system_uuid: None,
+        chassis_type: None,
+        bios: BiosInfo {
+            vendor: None,
+            version: bios_version,
+            date: bios_date,
+            release: None,
+            uefi_boot: true,
+            secure_boot: None,
+        },
+        chipset: None,
+        me_version: None,
+    }
+}
+
+#[cfg(not(unix))]
+fn get_wmic_value(class: &str, property: &str) -> Option<String> {
+    let output = std::process::Command::new("wmic")
+        .args([class, "get", property, "/value"])
+        .output()
+        .ok()?;
+    let text = String::from_utf8_lossy(&output.stdout);
+    for line in text.lines() {
+        if let Some(val) = line.strip_prefix(&format!("{}=", property)) {
+            let trimmed = val.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+    None
+}
+
+#[cfg(unix)]
 pub fn collect() -> MotherboardInfo {
     let dmi = Path::new("/sys/class/dmi/id");
 
@@ -46,6 +99,7 @@ pub fn collect() -> MotherboardInfo {
 
 /// Fill in `None` fields using parsed SMBIOS data.  Fields already populated
 /// from sysfs are left untouched.
+#[cfg(unix)]
 fn supplement_from_smbios(info: &mut MotherboardInfo, data: &smbios::SmbiosData) {
     if let Some(ref bb) = data.baseboard {
         if info.manufacturer.is_none() {
@@ -99,6 +153,7 @@ fn supplement_from_smbios(info: &mut MotherboardInfo, data: &smbios::SmbiosData)
     }
 }
 
+#[cfg(unix)]
 fn detect_secure_boot() -> Option<bool> {
     for entry in sysfs::glob_paths("/sys/firmware/efi/efivars/SecureBoot-*") {
         if let Ok(data) = std::fs::read(&entry) {
@@ -111,6 +166,7 @@ fn detect_secure_boot() -> Option<bool> {
     None
 }
 
+#[cfg(unix)]
 fn detect_chipset() -> Option<String> {
     // The host bridge at 00:00.0 identifies the chipset
     let vendor_path = Path::new("/sys/bus/pci/devices/0000:00:00.0/vendor");
@@ -125,8 +181,10 @@ fn detect_chipset() -> Option<String> {
     }
 }
 
+#[cfg(unix)]
 pub struct MotherboardCollector;
 
+#[cfg(unix)]
 impl crate::collectors::Collector for MotherboardCollector {
     fn name(&self) -> &str {
         "motherboard"
@@ -137,6 +195,7 @@ impl crate::collectors::Collector for MotherboardCollector {
     }
 }
 
+#[cfg(unix)]
 fn chassis_type_name(code: u8) -> String {
     match code {
         1 => "Other",

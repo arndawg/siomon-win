@@ -1,7 +1,14 @@
-use crate::model::storage::{NvmeDetails, SmartData, StorageDevice, StorageInterface};
-use crate::platform::{nvme_ioctl, sata_ioctl, sysfs};
+use crate::model::storage::{StorageDevice, StorageInterface};
+#[cfg(unix)]
+use crate::model::storage::{NvmeDetails, SmartData};
+#[cfg(unix)]
+use crate::platform::sysfs;
+#[cfg(unix)]
+use crate::platform::{nvme_ioctl, sata_ioctl};
+#[cfg(unix)]
 use std::path::Path;
 
+#[cfg(unix)]
 pub fn collect() -> Vec<StorageDevice> {
     let mut devices = Vec::new();
 
@@ -35,6 +42,48 @@ pub fn collect() -> Vec<StorageDevice> {
     devices
 }
 
+#[cfg(not(unix))]
+pub fn collect() -> Vec<StorageDevice> {
+    use sysinfo::{DiskKind, Disks};
+    let disks = Disks::new_with_refreshed_list();
+    disks
+        .list()
+        .iter()
+        .map(|disk| {
+            // Use drive letter only (e.g. "C:") so display shows "C: ..."
+            let mount = disk
+                .mount_point()
+                .to_string_lossy()
+                .trim_end_matches(['\\', '/'])
+                .to_string();
+            // Volume label (e.g. "OS", "Data") as model; fall back to filesystem type
+            let vol_name = disk.name().to_string_lossy().to_string();
+            let fs = disk.file_system().to_string_lossy().to_string();
+            let model = if vol_name.is_empty() { fs } else { vol_name };
+            let rotational = matches!(disk.kind(), DiskKind::HDD);
+            let interface = match disk.kind() {
+                DiskKind::SSD => StorageInterface::NVMe,
+                DiskKind::HDD => StorageInterface::SATA,
+                _ => StorageInterface::Unknown("unknown".to_string()),
+            };
+            StorageDevice {
+                device_name: mount,
+                sysfs_path: String::new(),
+                model: Some(model),
+                serial_number: None,
+                firmware_version: None,
+                capacity_bytes: disk.total_space(),
+                interface,
+                rotational,
+                logical_sector_size: 512,
+                physical_sector_size: 512,
+                nvme: None,
+                smart: None,
+            }
+        })
+        .collect()
+}
+
 pub struct StorageCollector;
 
 impl crate::collectors::Collector for StorageCollector {
@@ -47,10 +96,12 @@ impl crate::collectors::Collector for StorageCollector {
     }
 }
 
+#[cfg(unix)]
 fn is_partition(block_path: &Path) -> bool {
     block_path.join("partition").exists()
 }
 
+#[cfg(unix)]
 fn collect_device(name: &str, block_path: &Path) -> Option<StorageDevice> {
     let size_sectors = sysfs::read_u64_optional(&block_path.join("size")).unwrap_or(0);
     if size_sectors == 0 {
@@ -91,6 +142,7 @@ fn collect_device(name: &str, block_path: &Path) -> Option<StorageDevice> {
     })
 }
 
+#[cfg(unix)]
 fn collect_nvme(
     name: &str,
     block_path: &Path,
@@ -148,6 +200,7 @@ fn collect_nvme(
     )
 }
 
+#[cfg(unix)]
 fn collect_ata_scsi(
     name: &str,
     block_path: &Path,
@@ -168,13 +221,12 @@ fn collect_ata_scsi(
     let interface = detect_interface(block_path);
 
     // Try reading SATA SMART data via SG_IO ioctl
-    let smart_path = format!("/dev/{}", name);
-    let smart = sata_ioctl::read_sata_smart(Path::new(&smart_path))
-        .map(|ata| sata_ioctl::sata_smart_to_smart_data(&ata));
+    let smart = read_sata_smart_data(name);
 
     (interface, model, serial, firmware, smart)
 }
 
+#[cfg(unix)]
 fn read_nvme_smart_data(ctrl_name: &str) -> Option<SmartData> {
     let dev_path = format!("/dev/{}", ctrl_name);
     let log = nvme_ioctl::read_nvme_smart(Path::new(&dev_path))?;
@@ -205,6 +257,16 @@ fn read_nvme_smart_data(ctrl_name: &str) -> Option<SmartData> {
     })
 }
 
+
+#[cfg(unix)]
+fn read_sata_smart_data(name: &str) -> Option<SmartData> {
+    let smart_path = format!("/dev/{}", name);
+    sata_ioctl::read_sata_smart(Path::new(&smart_path))
+        .map(|ata| sata_ioctl::sata_smart_to_smart_data(&ata))
+}
+
+
+#[cfg(unix)]
 fn detect_interface(block_path: &Path) -> StorageInterface {
     let dev_path = block_path.join("device");
 

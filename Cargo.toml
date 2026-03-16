@@ -45,8 +45,6 @@ crossterm = { version = "0.28", optional = true }
 # CLI
 clap = { version = "4", features = ["derive", "env", "string"] }
 
-# Unix / Linux syscalls
-nix = { version = "0.29", features = ["fs", "ioctl", "mman", "process"] }
 libc = "0.2"
 
 # Dynamic loading (NVML)
@@ -68,8 +66,16 @@ env_logger = "0.11"
 # Sysfs enumeration
 glob = "0.3"
 
+[target.'cfg(unix)'.dependencies]
+# Unix / Linux syscalls
+nix = { version = "0.29", features = ["fs", "ioctl", "mman", "process"] }
+
 # IPMI BMC sensor access via /dev/ipmi0 ioctl
 ipmi-rs = { version = "0.5", default-features = true }
+
+[target.'cfg(windows)'.dependencies]
+sysinfo = "0.33"
+winapi = { version = "0.3", features = ["sysinfoapi", "winbase", "powerbase", "minwinbase"] }
 
 [profile.release]
 opt-level = "z"

@@ -4,10 +4,12 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::model::sensor::{SensorId, SensorReading};
+use crate::sensors::SensorSource;
+#[cfg(unix)]
 use crate::sensors::{
-    SensorSource, cpu_freq, cpu_util, disk_activity, gpu_sensors, hwmon, network_stats, rapl,
-    superio,
+    cpu_freq, gpu_sensors, hwmon, rapl, superio,
 };
+use crate::sensors::{cpu_util, disk_activity, network_stats};
 
 pub type SensorState = Arc<RwLock<HashMap<SensorId, SensorReading>>>;
 
@@ -152,6 +154,7 @@ impl Drop for PollerHandle {
 ///
 /// Encapsulates per-source construction and logging. Called by both the
 /// continuous poller and the one-shot snapshot.
+#[cfg_attr(not(unix), allow(dead_code))]
 fn join_or_log<T>(result: std::thread::Result<T>, name: &str) -> Option<T> {
     match result {
         Ok(v) => Some(v),
@@ -167,6 +170,7 @@ fn join_or_log<T>(result: std::thread::Result<T>, name: &str) -> Option<T> {
     }
 }
 
+#[cfg(unix)]
 fn discover_all_sources(
     no_nvidia: bool,
     direct_io: bool,
@@ -286,6 +290,19 @@ fn discover_all_sources(
         sources.len(),
         t.elapsed().as_millis()
     );
+    sources
+}
+
+#[cfg(not(unix))]
+fn discover_all_sources(
+    _no_nvidia: bool,
+    _direct_io: bool,
+    _label_overrides: &HashMap<String, String>,
+) -> Vec<Box<dyn SensorSource>> {
+    let mut sources: Vec<Box<dyn SensorSource>> = Vec::new();
+    sources.push(Box::new(cpu_util::CpuUtilSource::discover()));
+    sources.push(Box::new(network_stats::NetworkStatsSource::discover()));
+    sources.push(Box::new(disk_activity::DiskActivitySource::discover()));
     sources
 }
 

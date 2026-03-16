@@ -1,7 +1,17 @@
-use crate::model::battery::{BatteryChemistry, BatteryInfo, BatteryStatus};
+use crate::model::battery::BatteryInfo;
+#[cfg(unix)]
+use crate::model::battery::{BatteryChemistry, BatteryStatus};
+#[cfg(unix)]
 use crate::platform::sysfs;
+#[cfg(unix)]
 use std::path::Path;
 
+#[cfg(not(unix))]
+pub fn collect() -> Vec<BatteryInfo> {
+    vec![] // Battery detection requires additional Windows API features
+}
+
+#[cfg(unix)]
 pub fn collect() -> Vec<BatteryInfo> {
     let mut batteries = Vec::new();
 
@@ -26,8 +36,10 @@ pub fn collect() -> Vec<BatteryInfo> {
     batteries
 }
 
+#[cfg(unix)]
 pub struct BatteryCollector;
 
+#[cfg(unix)]
 impl crate::collectors::Collector for BatteryCollector {
     fn name(&self) -> &str {
         "battery"
@@ -38,6 +50,7 @@ impl crate::collectors::Collector for BatteryCollector {
     }
 }
 
+#[cfg(unix)]
 fn collect_battery(name: &str, path: &Path) -> Option<BatteryInfo> {
     let manufacturer = sysfs::read_string_optional(&path.join("manufacturer"));
     let model_name = sysfs::read_string_optional(&path.join("model_name"));
@@ -82,6 +95,7 @@ fn collect_battery(name: &str, path: &Path) -> Option<BatteryInfo> {
     })
 }
 
+#[cfg(unix)]
 fn compute_power_from_current(path: &Path) -> Option<u64> {
     let current_ua = sysfs::read_u64_optional(&path.join("current_now"))?;
     let voltage_uv = sysfs::read_u64_optional(&path.join("voltage_now"))?;
@@ -90,6 +104,7 @@ fn compute_power_from_current(path: &Path) -> Option<u64> {
     Some(current_ua * voltage_uv / 1_000_000)
 }
 
+#[cfg(unix)]
 fn classify_chemistry(technology: &str) -> BatteryChemistry {
     match technology {
         "Li-ion" => BatteryChemistry::LithiumIon,
@@ -100,6 +115,7 @@ fn classify_chemistry(technology: &str) -> BatteryChemistry {
     }
 }
 
+#[cfg(unix)]
 fn classify_status(status: &str) -> BatteryStatus {
     match status {
         "Charging" => BatteryStatus::Charging,

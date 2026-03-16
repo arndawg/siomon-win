@@ -3,7 +3,9 @@ use clap::{CommandFactory, FromArgMatches};
 
 use siomon::cli::{Cli, Commands, OutputFormat};
 use siomon::model::system::SystemInfo;
-use siomon::{collectors, config, db, output, platform, sensors};
+use siomon::{collectors, config, db, output, sensors};
+#[cfg(unix)]
+use siomon::platform;
 
 fn main() {
     env_logger::init();
@@ -188,13 +190,21 @@ fn join_or_default<T: Default>(result: std::thread::Result<T>, name: &str) -> T 
 fn collect_all(cli: &Cli) -> SystemInfo {
     let no_nvidia = cli.no_nvidia;
 
-    let hostname =
-        platform::sysfs::read_string_optional(std::path::Path::new("/proc/sys/kernel/hostname"))
-            .unwrap_or_else(|| "unknown".into());
+    #[cfg(unix)]
+    let hostname = platform::sysfs::read_string_optional(std::path::Path::new(
+        "/proc/sys/kernel/hostname",
+    ))
+    .unwrap_or_else(|| "unknown".into());
+    #[cfg(not(unix))]
+    let hostname = std::env::var("COMPUTERNAME").unwrap_or_else(|_| "unknown".into());
 
-    let kernel_version =
-        platform::sysfs::read_string_optional(std::path::Path::new("/proc/sys/kernel/osrelease"))
-            .unwrap_or_else(|| "unknown".into());
+    #[cfg(unix)]
+    let kernel_version = platform::sysfs::read_string_optional(std::path::Path::new(
+        "/proc/sys/kernel/osrelease",
+    ))
+    .unwrap_or_else(|| "unknown".into());
+    #[cfg(not(unix))]
+    let kernel_version = read_windows_version();
 
     // Run all collectors in parallel — the slow ones (GPU/NVML, storage/SMART,
     // PCI enumeration) no longer block each other.
@@ -256,13 +266,60 @@ fn collect_all(cli: &Cli) -> SystemInfo {
 }
 
 fn read_os_name() -> Option<String> {
-    let content = std::fs::read_to_string("/etc/os-release").ok()?;
-    for line in content.lines() {
-        if let Some(val) = line.strip_prefix("PRETTY_NAME=") {
-            return Some(val.trim_matches('"').to_string());
+    #[cfg(unix)]
+    {
+        let content = std::fs::read_to_string("/etc/os-release").ok()?;
+        for line in content.lines() {
+            if let Some(val) = line.strip_prefix("PRETTY_NAME=") {
+                return Some(val.trim_matches('"').to_string());
+            }
         }
+        None
     }
-    None
+    #[cfg(not(unix))]
+    {
+        // Read ProductName from the Windows registry (e.g. "Windows 11 Pro")
+        let out = std::process::Command::new("reg")
+            .args([
+                "query",
+                r"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion",
+                "/v",
+                "ProductName",
+            ])
+            .output()
+            .ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok());
+        if let Some(text) = out {
+            for line in text.lines() {
+                // Line looks like "    ProductName    REG_SZ    Windows 11 Pro"
+                let parts: Vec<&str> = line.trim().splitn(3, "    ").collect();
+                if parts.len() == 3 && parts[0] == "ProductName" {
+                    let val = parts[2].trim().to_string();
+                    if !val.is_empty() {
+                        return Some(val);
+                    }
+                }
+            }
+        }
+        Some("Windows".to_string())
+    }
+}
+
+#[cfg(not(unix))]
+fn read_windows_version() -> String {
+    // Extract "10.0.26200.7840" from "Microsoft Windows [Version 10.0.26200.7840]"
+    std::process::Command::new("cmd")
+        .args(["/c", "ver"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .and_then(|s| {
+            let s = s.trim();
+            let inside = s.split('[').nth(1)?;
+            let inside = inside.trim_end_matches(|c: char| c == ']' || c.is_whitespace());
+            inside.strip_prefix("Version ").map(|v| v.trim().to_string())
+        })
+        .unwrap_or_else(|| "Windows".to_string())
 }
 
 /// Start a background thread that periodically writes sensor data to a CSV file.
