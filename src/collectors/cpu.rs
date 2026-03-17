@@ -21,18 +21,16 @@ pub fn collect() -> Result<Vec<CpuInfo>> {
 
     // Extract procfs fields from the first processor entry.
     let first_proc = cpuinfo_entries.first();
-    let microcode = first_proc
-        .and_then(|p| p.get("microcode").cloned())
-        .or_else(|| {
-            #[cfg(not(unix))]
-            {
-                read_windows_microcode()
-            }
-            #[cfg(unix)]
-            {
-                None
-            }
-        });
+    let microcode = first_proc.and_then(|p| p.get("microcode").cloned()).or({
+        #[cfg(not(unix))]
+        {
+            read_windows_microcode()
+        }
+        #[cfg(unix)]
+        {
+            None
+        }
+    });
     let vulnerabilities = gather_vulnerabilities();
     let (phys_addr_bits, virt_addr_bits) = parse_address_sizes(first_proc);
 
