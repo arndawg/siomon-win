@@ -207,6 +207,7 @@ fn collect_all(cli: &Cli) -> SystemInfo {
     // Run all collectors in parallel — the slow ones (GPU/NVML, storage/SMART,
     // PCI enumeration) no longer block each other.
     let t = std::time::Instant::now();
+    #[allow(unused_mut)]
     let (cpus, memory, mut motherboard, gpus, storage, network, pci, audio, usb, batteries) =
         std::thread::scope(|s| {
             let h_cpu = s.spawn(|| {
